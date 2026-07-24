@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'core/tv_remote_manager.dart';
 import 'ui/themes/app_theme.dart';
-import 'ui/screens/discovery_screen.dart';
+import 'ui/screens/brand_selection_screen.dart';
 
 void main() {
   // Ensure Flutter engine bindings are initialized prior to channel invokes
@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
       title: 'Universal TV Remote',
       theme: AppTheme.darkTheme,
       debugShowCheckedModeBanner: false,
-      home: DiscoveryScreen(manager: manager),
+      home: BrandSelectionScreen(manager: manager),
     );
   }
 }

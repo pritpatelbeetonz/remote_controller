@@ -137,9 +137,11 @@ class _PairingScreenState extends State<PairingScreen> {
                       ),
                     ),
                     const SizedBox(height: 32),
-                    // Prompt text
+                     // Prompt text
                     Text(
-                      'Enter the 6-character PIN shown on your TV screen ($deviceName)',
+                      manager.pairingPin == 'CONFIRM ON TV'
+                          ? 'Allow Connection on TV'
+                          : 'Enter the 6-character PIN shown on your TV screen ($deviceName)',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 16,
@@ -149,39 +151,60 @@ class _PairingScreenState extends State<PairingScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // 6 Digit Entry Fields
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: List.generate(6, (index) {
-                        return Container(
-                          width: 48,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            color: AppTheme.surface,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppTheme.border, width: 1.5),
+                    // Dynamic Entry / Spinner Fields
+                    if (manager.pairingPin == 'CONFIRM ON TV')
+                      Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
                           ),
-                          child: TextField(
-                            controller: _controllers[index],
-                            focusNode: _focusNodes[index],
+                          const SizedBox(height: 24),
+                          Text(
+                            'Please press "Allow" on your TV screen using your physical TV Remote to complete pairing.',
                             textAlign: TextAlign.center,
-                            keyboardType: TextInputType.text,
-                            textCapitalization: TextCapitalization.characters,
                             style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primary,
+                              color: Colors.white70,
+                              fontSize: 14,
+                              height: 1.4,
                             ),
-                            decoration: const InputDecoration(
-                              border: InputBorder.none,
-                              counterText: '',
-                            ),
-                            maxLength: 1,
-                            onChanged: (val) => _onPinChanged(index, val),
                           ),
-                        );
-                      }),
-                    ),
+                          const SizedBox(height: 16),
+                        ],
+                      )
+                    else
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(6, (index) {
+                          return Container(
+                            width: 48,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppTheme.border, width: 1.5),
+                            ),
+                            child: TextField(
+                              controller: _controllers[index],
+                              focusNode: _focusNodes[index],
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.text,
+                              textCapitalization: TextCapitalization.characters,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primary,
+                              ),
+                              decoration: const InputDecoration(
+                                border: InputBorder.none,
+                                counterText: '',
+                              ),
+                              maxLength: 1,
+                              onChanged: (val) => _onPinChanged(index, val),
+                            ),
+                          );
+                        }),
+                      ),
                     const SizedBox(height: 40),
 
                     // Pairing status feedback

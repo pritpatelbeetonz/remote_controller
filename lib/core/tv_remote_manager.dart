@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'tv_remote_adapter.dart';
 import '../adapters/android_tv_adapter.dart';
+import '../adapters/samsung_tizen_adapter.dart';
+import '../adapters/lg_webos_adapter.dart';
+import '../adapters/roku_adapter.dart';
 
 enum TvConnectionState {
   disconnected,
@@ -32,7 +35,12 @@ class LogEntry {
 }
 
 class TvRemoteManager extends ChangeNotifier {
-  final TvRemoteAdapter adapter = AndroidTvAdapter();
+  final List<TvRemoteAdapter> adapters = [
+    AndroidTvAdapter(),
+    SamsungTizenAdapter(),
+    LgWebOsAdapter(),
+    RokuAdapter(),
+  ];
 
   List<TvDevice> _discoveredDevices = [];
   List<TvDevice> get discoveredDevices => _discoveredDevices;
@@ -55,33 +63,44 @@ class TvRemoteManager extends ChangeNotifier {
   String? _pairingStatusMessage;
   String? get pairingStatusMessage => _pairingStatusMessage;
 
-  StreamSubscription? _logSubscription;
+  final List<StreamSubscription> _subscriptions = [];
 
   TvRemoteManager() {
     _initLogging();
   }
 
   void _initLogging() {
-    _logSubscription = adapter.logs.listen(
-      (logData) {
-        final entry = LogEntry(
-          level: logData['level'] as String? ?? 'DEBUG',
-          tag: logData['tag'] as String? ?? 'NATIVE',
-          message: logData['message'] as String? ?? '',
-          timestamp: DateTime.fromMillisecondsSinceEpoch(
-            logData['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch,
-          ),
-        );
-        _logs.add(entry);
-        if (_logs.length > 500) {
-          _logs.removeAt(0); // Cap history size
-        }
-        notifyListeners();
-      },
-      onError: (e) {
-        addLocalLog('ERROR', 'MANAGER', 'Log stream subscription error: $e');
-      },
-    );
+    for (final adapter in adapters) {
+      final sub = adapter.logs.listen(
+        (logData) {
+          final rawTimestamp = logData['timestamp'];
+          DateTime timestamp;
+          if (rawTimestamp is DateTime) {
+            timestamp = rawTimestamp;
+          } else if (rawTimestamp is int) {
+            timestamp = DateTime.fromMillisecondsSinceEpoch(rawTimestamp);
+          } else {
+            timestamp = DateTime.now();
+          }
+
+          final entry = LogEntry(
+            level: logData['level'] as String? ?? 'DEBUG',
+            tag: logData['tag'] as String? ?? 'NATIVE',
+            message: logData['message'] as String? ?? '',
+            timestamp: timestamp,
+          );
+          _logs.add(entry);
+          if (_logs.length > 500) {
+            _logs.removeAt(0); // Cap history size
+          }
+          notifyListeners();
+        },
+        onError: (e) {
+          addLocalLog('ERROR', 'MANAGER', 'Log stream subscription error: $e');
+        },
+      );
+      _subscriptions.add(sub);
+    }
     addLocalLog('INFO', 'MANAGER', 'Logger initialized. Log streaming started.');
   }
 
@@ -104,30 +123,57 @@ class TvRemoteManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  TvRemoteAdapter _getAdapterForDevice(TvDevice? device) {
+    final brand = device?.brand ?? 'Android TV';
+    if (brand == 'Samsung Tizen') {
+      return adapters.firstWhere((a) => a is SamsungTizenAdapter);
+    }
+    if (brand == 'LG webOS') {
+      return adapters.firstWhere((a) => a is LgWebOsAdapter);
+    }
+    if (brand == 'Roku') {
+      return adapters.firstWhere((a) => a is RokuAdapter);
+    }
+    return adapters.firstWhere((a) => a is AndroidTvAdapter);
+  }
+
   Future<void> startScan() async {
     if (_isScanning) return;
     _isScanning = true;
     _discoveredDevices = [];
     notifyListeners();
 
-    addLocalLog('INFO', 'MANAGER', 'Starting network service discovery for Android TV...');
-    try {
-      await adapter.startDiscovery((devices) {
-        _discoveredDevices = devices;
-        addLocalLog('DEBUG', 'MANAGER', 'Discovered ${devices.length} devices total.');
-        notifyListeners();
-      });
-    } catch (e) {
-      addLocalLog('ERROR', 'MANAGER', 'Discovery initialization failed: $e');
-      _isScanning = false;
-      notifyListeners();
+    addLocalLog('INFO', 'MANAGER', 'Starting network service discovery for all brands...');
+    final Map<String, List<TvDevice>> brandDevices = {};
+
+    for (final adapter in adapters) {
+      try {
+        await adapter.startDiscovery((devices) {
+          if (devices.isNotEmpty) {
+            final brand = devices.first.brand;
+            brandDevices[brand] = devices;
+
+            // Merge devices from all brands
+            final allDevices = <TvDevice>[];
+            brandDevices.forEach((_, list) {
+              allDevices.addAll(list);
+            });
+            _discoveredDevices = allDevices;
+            notifyListeners();
+          }
+        });
+      } catch (e) {
+        addLocalLog('ERROR', 'MANAGER', 'Discovery initialization failed for adapter: $e');
+      }
     }
   }
 
   Future<void> stopScan() async {
     if (!_isScanning) return;
     _isScanning = false;
-    await adapter.stopDiscovery();
+    for (final adapter in adapters) {
+      await adapter.stopDiscovery();
+    }
     addLocalLog('INFO', 'MANAGER', 'Network discovery stopped.');
     notifyListeners();
   }
@@ -137,11 +183,12 @@ class TvRemoteManager extends ChangeNotifier {
     _connectionState = TvConnectionState.connecting;
     notifyListeners();
 
+    final activeAdapter = _getAdapterForDevice(device);
     addLocalLog('INFO', 'MANAGER', 'Connecting to TV: ${device.name} (${device.ipAddress}:${device.port})...');
 
-    final success = await adapter.connect(device);
+    final success = await activeAdapter.connect(device);
     if (success) {
-      addLocalLog('INFO', 'MANAGER', 'TLS connection established. Initiating pairing check.');
+      addLocalLog('INFO', 'MANAGER', 'Connection established. Initiating pairing check.');
       _connectionState = TvConnectionState.pairing;
       notifyListeners();
 
@@ -155,17 +202,18 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   Future<void> _startPairingFlow() async {
-    addLocalLog('INFO', 'MANAGER', 'Starting Polo pairing handshake protocol...');
-    final success = await adapter.startPairing(
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
+    addLocalLog('INFO', 'MANAGER', 'Starting pairing handshake protocol...');
+    final success = await activeAdapter.startPairing(
       onPin: (pin) {
         _pairingPin = pin;
-        addLocalLog('INFO', 'MANAGER', 'Pairing PIN displayed on TV: $pin');
+        addLocalLog('INFO', 'MANAGER', 'Pairing info displayed: $pin');
         notifyListeners();
       },
       onStatus: (status) {
         _pairingStatusMessage = status;
         addLocalLog('DEBUG', 'MANAGER', 'Pairing state changed natively to: $status');
-        if (status == 'SUCCESS') {
+        if (status == 'SUCCESS' || status == 'CONFIRMED' || status == 'CONNECTED') {
           _connectionState = TvConnectionState.connected;
           addLocalLog('INFO', 'MANAGER', 'TV Remote pairing successfully completed! Remote is ready.');
         } else if (status == 'FAILED') {
@@ -185,8 +233,9 @@ class TvRemoteManager extends ChangeNotifier {
 
   Future<void> submitPin(String pin) async {
     if (_connectionState != TvConnectionState.pairing) return;
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('INFO', 'MANAGER', 'Submitting pairing PIN code: $pin');
-    final success = await adapter.sendPin(pin);
+    final success = await activeAdapter.sendPin(pin);
     if (!success) {
       addLocalLog('ERROR', 'MANAGER', 'PIN submission failed.');
       notifyListeners();
@@ -198,16 +247,18 @@ class TvRemoteManager extends ChangeNotifier {
       addLocalLog('WARN', 'MANAGER', 'Cannot send keypress $key: Remote is not fully connected.');
       return;
     }
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('DEBUG', 'MANAGER', 'Sending key command: ${key.name}');
-    final success = await adapter.sendKey(key);
+    final success = await activeAdapter.sendKey(key);
     if (!success) {
       addLocalLog('ERROR', 'MANAGER', 'Failed to send command ${key.name}.');
     }
   }
 
   Future<void> disconnect() async {
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('INFO', 'MANAGER', 'Disconnecting session...');
-    await adapter.disconnect();
+    await activeAdapter.disconnect();
     _currentDevice = null;
     _connectionState = TvConnectionState.disconnected;
     _pairingPin = null;
@@ -217,8 +268,12 @@ class TvRemoteManager extends ChangeNotifier {
 
   @override
   void dispose() {
-    _logSubscription?.cancel();
-    adapter.disconnect();
+    for (final sub in _subscriptions) {
+      sub.cancel();
+    }
+    for (final adapter in adapters) {
+      adapter.disconnect();
+    }
     super.dispose();
   }
 }

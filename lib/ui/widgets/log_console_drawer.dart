@@ -5,8 +5,9 @@ import '../themes/app_theme.dart';
 
 class LogConsoleDrawer extends StatefulWidget {
   final TvRemoteManager manager;
+  final VoidCallback? onClose;
 
-  const LogConsoleDrawer({Key? key, required this.manager}) : super(key: key);
+  const LogConsoleDrawer({Key? key, required this.manager, this.onClose}) : super(key: key);
 
   @override
   State<LogConsoleDrawer> createState() => _LogConsoleDrawerState();
@@ -93,16 +94,19 @@ class _LogConsoleDrawerState extends State<LogConsoleDrawer> {
               children: [
                 const Icon(Icons.terminal, color: AppTheme.primary, size: 20),
                 const SizedBox(width: 8),
-                const Text(
-                  'PROTOCOL & CONNECTION CONSOLE',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                    letterSpacing: 1.0,
-                    color: Colors.white,
+                const Expanded(
+                  child: Text(
+                    'PROTOCOL & CONNECTION CONSOLE',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      letterSpacing: 1.0,
+                      color: Colors.white,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
-                const Spacer(),
                 // AutoScroll Toggle
                 IconButton(
                   icon: Icon(
@@ -142,6 +146,12 @@ class _LogConsoleDrawerState extends State<LogConsoleDrawer> {
                     });
                   },
                 ),
+                if (widget.onClose != null)
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 22),
+                    tooltip: 'Close console',
+                    onPressed: widget.onClose,
+                  ),
               ],
             ),
           ),

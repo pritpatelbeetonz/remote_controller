@@ -4,6 +4,7 @@ import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
 import 'discovery_screen.dart';
+import 'brand_selection_screen.dart';
 
 class RemoteScreen extends StatefulWidget {
   final TvRemoteManager manager;
@@ -18,9 +19,22 @@ class _RemoteScreenState extends State<RemoteScreen> {
   bool _showConsole = false;
 
   void _sendAction(TvKey key) {
+    if (widget.manager.connectionState != TvConnectionState.connected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Not connected to TV. Redirecting to brand selection...'),
+          backgroundColor: AppTheme.error,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
+        (route) => false,
+      );
+      return;
+    }
     widget.manager.sendPress(key);
-    // Trigger lightweight haptic vibration feedback locally
-    // HapticFeedback.lightImpact();
   }
 
   @override
@@ -62,18 +76,24 @@ class _RemoteScreenState extends State<RemoteScreen> {
                             Container(
                               width: 6,
                               height: 6,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: AppTheme.success,
+                                color: manager.connectionState == TvConnectionState.connected
+                                    ? AppTheme.success
+                                    : AppTheme.error,
                               ),
                             ),
                             const SizedBox(width: 6),
-                            const Text(
-                              'CONNECTED',
+                            Text(
+                              manager.connectionState == TvConnectionState.connected
+                                  ? 'CONNECTED'
+                                  : 'DISCONNECTED',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: AppTheme.success,
+                                color: manager.connectionState == TvConnectionState.connected
+                                    ? AppTheme.success
+                                    : AppTheme.error,
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -184,7 +204,15 @@ class _RemoteScreenState extends State<RemoteScreen> {
             ),
 
             // Live debug log console drawer
-            if (_showConsole) LogConsoleDrawer(manager: manager),
+            if (_showConsole)
+              LogConsoleDrawer(
+                manager: manager,
+                onClose: () {
+                  setState(() {
+                    _showConsole = false;
+                  });
+                },
+              ),
           ],
         ),
       ),
@@ -197,21 +225,35 @@ class _RemoteScreenState extends State<RemoteScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
         title: const Text('Disconnect Device?'),
-        content: const Text('Are you sure you want to disconnect and exit remote screen?'),
+        content: const Text('Would you like to search for other devices of the same brand or switch TV brands entirely?'),
         actions: [
           TextButton(
             child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
             onPressed: () => Navigator.pop(context),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
-            child: const Text('DISCONNECT'),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: AppTheme.primary, side: const BorderSide(color: AppTheme.primary)),
+            child: const Text('SWITCH BRAND'),
             onPressed: () {
               Navigator.pop(context);
               widget.manager.disconnect();
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (_) => DiscoveryScreen(manager: widget.manager)),
+                MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
+                (route) => false,
+              );
+            },
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text('DISCONNECT'),
+            onPressed: () {
+              final brand = widget.manager.currentDevice?.brand ?? 'Android TV';
+              Navigator.pop(context);
+              widget.manager.disconnect();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => DiscoveryScreen(manager: widget.manager, selectedBrand: brand)),
                 (route) => false,
               );
             },

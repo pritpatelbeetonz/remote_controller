@@ -3,11 +3,11 @@ import 'package:remote_controller/core/tv_remote_manager.dart';
 import 'package:remote_controller/main.dart';
 
 void main() {
-  testWidgets('App starts and shows discovery screen', (WidgetTester tester) async {
+  testWidgets('App starts and shows brand selection screen', (WidgetTester tester) async {
     final manager = TvRemoteManager();
     await tester.pumpWidget(MyApp(manager: manager));
     
-    // Verify that the header CONNECT DEVICE is present on the screen
-    expect(find.text('CONNECT DEVICE'), findsOneWidget);
+    // Verify that the header UNIVERSAL TV REMOTE is present on the screen
+    expect(find.text('UNIVERSAL TV REMOTE'), findsOneWidget);
   });
 }

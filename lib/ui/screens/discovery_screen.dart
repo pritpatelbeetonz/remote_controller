@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
 import 'pairing_screen.dart';
+import 'remote_screen.dart';
 
 class DiscoveryScreen extends StatefulWidget {
   final TvRemoteManager manager;
+  final String selectedBrand;
 
-  const DiscoveryScreen({Key? key, required this.manager}) : super(key: key);
+  const DiscoveryScreen({Key? key, required this.manager, required this.selectedBrand}) : super(key: key);
 
   @override
   State<DiscoveryScreen> createState() => _DiscoveryScreenState();
@@ -16,18 +19,49 @@ class DiscoveryScreen extends StatefulWidget {
 
 class _DiscoveryScreenState extends State<DiscoveryScreen> {
   final TextEditingController _ipController = TextEditingController();
-  final TextEditingController _portController = TextEditingController(text: '6466');
+  late final TextEditingController _portController;
+  bool _showManualInput = false;
+  bool _showLogs = false;
+  Timer? _scanTimer;
+  late String _selectedBrand;
 
   @override
   void initState() {
     super.initState();
+    _selectedBrand = widget.selectedBrand;
+    String initialPort;
+    if (_selectedBrand == 'Samsung Tizen') {
+      initialPort = '8002';
+    } else if (_selectedBrand == 'LG webOS') {
+      initialPort = '3000';
+    } else if (_selectedBrand == 'Roku') {
+      initialPort = '8060';
+    } else {
+      initialPort = '6466';
+    }
+    _portController = TextEditingController(text: initialPort);
     // Auto start scanning when discovery screen opens
     widget.manager.startScan();
     widget.manager.addListener(_onStateChange);
+
+    // Scan for 2 minutes. If no devices found, redirect to RemoteScreen anyway.
+    _scanTimer = Timer(const Duration(minutes: 2), () {
+      if (mounted) {
+        if (widget.manager.discoveredDevices.isEmpty) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RemoteScreen(manager: widget.manager),
+            ),
+          );
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _scanTimer?.cancel();
     widget.manager.removeListener(_onStateChange);
     widget.manager.stopScan();
     _ipController.dispose();
@@ -37,13 +71,23 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
   void _onStateChange() {
     if (widget.manager.connectionState == TvConnectionState.pairing) {
+      _scanTimer?.cancel();
       // Transition to pairing screen
-      Navigator.push(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => PairingScreen(manager: widget.manager),
         ),
       );
+    } else if (widget.manager.discoveredDevices.isNotEmpty &&
+        widget.manager.connectionState == TvConnectionState.disconnected) {
+      final matchingDevices = widget.manager.discoveredDevices
+          .where((d) => d.brand == widget.selectedBrand)
+          .toList();
+      if (matchingDevices.isNotEmpty) {
+        _scanTimer?.cancel();
+        widget.manager.connectToDevice(matchingDevices.first);
+      }
     }
   }
 
@@ -64,10 +108,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
     final device = TvDevice(
       id: ip,
-      name: 'Custom Android TV',
+      name: 'Manual $_selectedBrand ($ip)',
       ipAddress: ip,
       port: port,
-      brand: 'Android TV',
+      brand: _selectedBrand,
     );
 
     widget.manager.stopScan();
@@ -92,6 +136,17 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         elevation: 0,
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(
+              Icons.terminal,
+              color: _showLogs ? AppTheme.primary : Colors.white54,
+            ),
+            onPressed: () {
+              setState(() {
+                _showLogs = !_showLogs;
+              });
+            },
+          ),
           IconButton(
             icon: Icon(
               manager.isScanning ? Icons.stop : Icons.refresh,
@@ -149,54 +204,67 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
             // Discovered Devices list
             Expanded(
-              child: manager.discoveredDevices.isEmpty
-                  ? _buildManualInputForm()
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: manager.discoveredDevices.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == manager.discoveredDevices.length) {
-                          // Show manual input form at the bottom of the list
-                          return Column(
-                            children: [
-                              const Divider(color: AppTheme.border, height: 32),
-                              _buildManualInputSection(),
-                              const SizedBox(height: 20),
-                            ],
-                          );
-                        }
+              child: () {
+                final displayedDevices = manager.discoveredDevices
+                    .where((d) => d.brand == widget.selectedBrand)
+                    .toList();
+                return displayedDevices.isEmpty
+                    ? (_showManualInput ? _buildManualInputForm() : _buildScanningPlaceholder())
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: displayedDevices.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == displayedDevices.length) {
+                            // Show manual input form at the bottom of the list
+                            return Column(
+                              children: [
+                                const Divider(color: AppTheme.border, height: 32),
+                                _buildManualInputSection(),
+                                const SizedBox(height: 20),
+                              ],
+                            );
+                          }
 
-                        final device = manager.discoveredDevices[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          color: AppTheme.surface,
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            leading: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surfaceElevated,
-                                borderRadius: BorderRadius.circular(8),
+                          final device = displayedDevices[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            color: AppTheme.surface,
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.surfaceElevated,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(Icons.tv, color: AppTheme.primary),
                               ),
-                              child: const Icon(Icons.tv, color: AppTheme.primary),
+                              title: Text(
+                                device.name,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text('${device.brand} • ${device.ipAddress}:${device.port}'),
+                              trailing: const Icon(Icons.chevron_right, color: AppTheme.primary),
+                              onTap: () {
+                                manager.connectToDevice(device);
+                              },
                             ),
-                            title: Text(
-                              device.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text('${device.ipAddress}:${device.port}'),
-                            trailing: const Icon(Icons.chevron_right, color: AppTheme.primary),
-                            onTap: () {
-                              manager.connectToDevice(device);
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      );
+              }(),
             ),
 
             // Logs console drawer at the bottom
-            LogConsoleDrawer(manager: manager),
+            if (_showLogs)
+              LogConsoleDrawer(
+                manager: manager,
+                onClose: () {
+                  setState(() {
+                    _showLogs = false;
+                  });
+                },
+              ),
           ],
         ),
       ),
@@ -225,6 +293,40 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedBrand,
+                dropdownColor: AppTheme.surfaceElevated,
+                decoration: InputDecoration(
+                  labelText: 'TV Brand',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppTheme.border),
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Android TV', child: Text('Android TV / Google TV')),
+                  DropdownMenuItem(value: 'Samsung Tizen', child: Text('Samsung Tizen TV')),
+                  DropdownMenuItem(value: 'LG webOS', child: Text('LG Smart TV (webOS)')),
+                  DropdownMenuItem(value: 'Roku', child: Text('Roku TV')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _selectedBrand = val;
+                      if (val == 'Samsung Tizen') {
+                        _portController.text = '8002';
+                      } else if (val == 'LG webOS') {
+                        _portController.text = '3000';
+                      } else if (val == 'Roku') {
+                        _portController.text = '8060';
+                      } else {
+                        _portController.text = '6466';
+                      }
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 16),
               TextField(
@@ -257,12 +359,83 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.black,
-                  shadowColor: AppTheme.primary.withOpacity(0.5),
+                  shadowColor: AppTheme.primary.withValues(alpha: 0.5),
                   elevation: 5,
                 ),
                 child: const Text('CONNECT'),
               ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _showManualInput = false;
+                  });
+                },
+                child: const Text(
+                  'Back to Auto Scan',
+                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+              ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanningPlaceholder() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Card(
+          color: AppTheme.surface,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.wifi_find,
+                  color: AppTheme.primary,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Searching for TVs...',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'This scan uses multicast DNS to locate Android TV or Google TV devices automatically.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _showManualInput = true;
+                    });
+                  },
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: const Text('CONNECT MANUALLY'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    side: const BorderSide(color: AppTheme.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
