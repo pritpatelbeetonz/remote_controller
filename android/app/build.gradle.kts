@@ -42,3 +42,13 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Cryptography for RSA certificate generation
+    implementation("org.bouncycastle:bcprov-jdk15on:1.70")
+    implementation("org.bouncycastle:bcpkix-jdk15on:1.70")
+
+    // Kotlin Coroutines for asynchronous socket/pairing flows
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
+}
