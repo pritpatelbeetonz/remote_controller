@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -175,12 +176,7 @@ class BrandSelectionScreen extends StatelessWidget {
         brand: brand,
       );
       manager.connectToDevice(mockDevice);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PairingScreen(manager: manager),
-        ),
-      );
+      Get.to(() => PairingScreen(manager: manager));
       return;
     }
 
@@ -193,24 +189,14 @@ class BrandSelectionScreen extends StatelessWidget {
         brand: brand,
       );
       manager.connectToDevice(mockDevice);
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RemoteScreen(manager: manager),
-        ),
-      );
+      Get.to(() => RemoteScreen(manager: manager));
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DiscoveryScreen(
+    Get.to(() => DiscoveryScreen(
           manager: manager,
           selectedBrand: brand,
-        ),
-      ),
-    );
+        ));
   }
 
   Widget _buildBrandCard({

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:get/get.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -90,11 +91,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         duration: Duration(seconds: 2),
       ),
     );
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
-      (route) => false,
-    );
+    Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
   }
 
   // Load Apps
@@ -238,7 +235,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
 
   bool get _isRoku => widget.manager.currentDevice?.brand == 'Roku';
   bool get _isSamsung => widget.manager.currentDevice?.brand == 'Samsung Tizen';
-  bool get _isAndroidTv => widget.manager.currentDevice?.brand == 'Android TV';
+  bool get _isAndroidTv => !_isRoku && !_isSamsung && !_isLg && !_isAppleTv && !_isAmazonFireTv;
   bool get _isLg => widget.manager.currentDevice?.brand == 'LG webOS';
   bool get _isAppleTv => widget.manager.currentDevice?.brand == 'Apple TV';
   bool get _isAmazonFireTv => widget.manager.currentDevice?.brand == 'Amazon Fire TV';
@@ -1269,25 +1266,16 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             onPressed: () {
               Navigator.pop(context);
               widget.manager.disconnect();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
-                (route) => false,
-              );
+              Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
             },
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
             child: const Text('DISCONNECT'),
             onPressed: () {
-              final brand = widget.manager.currentDevice?.brand ?? 'Android TV';
               Navigator.pop(context);
               widget.manager.disconnect();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => DiscoveryScreen(manager: widget.manager, selectedBrand: brand)),
-                (route) => false,
-              );
+              Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
             },
           ),
         ],

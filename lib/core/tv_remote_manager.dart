@@ -214,6 +214,14 @@ class TvRemoteManager extends ChangeNotifier {
       return;
     }
 
+    if (_bypassToPairing) {
+      _connectionState = TvConnectionState.pairing;
+      _pairingPin = '123456';
+      addLocalLog('INFO', 'MANAGER', 'Connecting to TV: ${device.name} (Bypassing to pairing screen)...');
+      notifyListeners();
+      return;
+    }
+
     _connectionState = TvConnectionState.connecting;
     notifyListeners();
 
@@ -266,6 +274,12 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   Future<void> submitPin(String pin) async {
+    if (_bypassToPairing) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock submitting PIN: $pin');
+      _connectionState = TvConnectionState.connected;
+      notifyListeners();
+      return;
+    }
     if (_connectionState != TvConnectionState.pairing) return;
     final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('INFO', 'MANAGER', 'Submitting pairing PIN code: $pin');
@@ -389,7 +403,7 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
-    if (_bypassAuthentication) {
+    if (_bypassAuthentication || _bypassToPairing) {
       addLocalLog('INFO', 'MANAGER', '[BYPASS] Disconnecting mock session...');
       _currentDevice = null;
       _connectionState = TvConnectionState.disconnected;

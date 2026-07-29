@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
@@ -17,6 +18,8 @@ class PairingScreen extends StatefulWidget {
 class _PairingScreenState extends State<PairingScreen> {
   final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
+
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -37,15 +40,12 @@ class _PairingScreenState extends State<PairingScreen> {
   }
 
   void _onStateChange() {
+    if (_isNavigating) return;
+
     if (widget.manager.connectionState == TvConnectionState.connected) {
+      _isNavigating = true;
       // Pairing successful! Route to remote screen.
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RemoteScreen(manager: widget.manager),
-        ),
-        (route) => false, // Remove all previous routes
-      );
+      Get.offAll(() => RemoteScreen(manager: widget.manager));
     } else if (widget.manager.connectionState == TvConnectionState.failed) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -92,6 +92,7 @@ class _PairingScreenState extends State<PairingScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(
           'Pairing Code',
@@ -110,7 +111,7 @@ class _PairingScreenState extends State<PairingScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
             manager.disconnect();
-            Navigator.pop(context);
+            Get.back();
           },
         ),
       ),
