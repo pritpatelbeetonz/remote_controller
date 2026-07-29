@@ -1,21 +1,70 @@
 import 'package:flutter/material.dart';
-
+import 'package:video_player/video_player.dart';
 import '../../for_ads/utils/firebase_analysis.dart';
 
-class Welcome3 extends StatelessWidget {
-  const Welcome3({super.key});
+class Welcome3 extends StatefulWidget {
+  final bool isActive;
+  const Welcome3({super.key, required this.isActive});
+
+  @override
+  State<Welcome3> createState() => _Welcome3State();
+}
+
+class _Welcome3State extends State<Welcome3> {
+  late VideoPlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    FirebaseAnalyticsService.logEvent(eventName: 'INTRO_SCREEN_3');
+    _controller = VideoPlayerController.asset(
+      'assets/intro/intro_videos/intro_3.mp4',
+    )..initialize().then((_) {
+        if (mounted) {
+          setState(() {});
+          _controller.setLooping(true);
+          if (widget.isActive) {
+            _controller.play();
+          }
+        }
+      });
+  }
+
+  @override
+  void didUpdateWidget(covariant Welcome3 oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive) {
+      if (widget.isActive) {
+        _controller.play();
+      } else {
+        _controller.pause();
+        _controller.seekTo(Duration.zero);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    FirebaseAnalyticsService.logEvent(eventName: 'INTRO_SCREEN_3');
     return PopScope(
       canPop: false,
-      child: Image.asset(
-        "assets/Onboarding 3/Onboarding 3.png",
-        width: double.infinity,
-        height:double.infinity,
-        fit: BoxFit.cover,
-      ),
+      child: _controller.value.isInitialized
+          ? SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _controller.value.size.width,
+                  height: _controller.value.size.height,
+                  child: VideoPlayer(_controller),
+                ),
+              ),
+            )
+          : Container(color: Colors.black),
     );
   }
 }

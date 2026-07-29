@@ -166,7 +166,7 @@ class SplashScreenState extends State<SplashScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 40.h,
+                bottom: 20.h,
                 child: Column(
                   children: [
                     Text('Universal Remote', style: TextStyle(

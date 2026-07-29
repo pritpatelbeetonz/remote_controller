@@ -40,6 +40,7 @@ dependencies:
   path_provider: ^2.1.1
   uuid: ^4.3.3
   get: ^4.6.6
+  video_player: ^2.11.1
 
 
 dev_dependencies:
@@ -56,6 +57,9 @@ flutter:
     - assets/casting/
     - assets/home/
     - assets/intro/
+    - assets/intro/intro_videos/intro_1.mp4
+    - assets/intro/intro_videos/intro_2.mp4
+    - assets/intro/intro_videos/intro_3.mp4
     - assets/premium/
     - assets/settting/
     - assets/splash/

@@ -104,15 +104,15 @@ class WelPageviewState extends State<WelPageview> {
 
   Widget bottomnavigation(int dataLength, int currentIndex) {
     final List<String> titles = [
-      "Beautiful Templates",
-      "Design Every Memory",
-      "Endless Layouts",
+      "Connect to Your\n Smart TV",
+      "Control All TV \n Apps",
+      "Instant Screen \n Casting",
     ];
 
     final List<String> Subtitles = [
-      "Discover the perfect layout for every memory.",
-      "Create collages that tell your story.",
-      "Choose a layout that fits your style.",
+      "Link your phone to your smart TV for fast and \n reliable control.",
+      "Easily navigate and launch entertainment apps \n without your TV remote.",
+      "Cast photos, videos, and more from your phone \n to the big screen in just a few taps.",
     ];
 
     // Hide bottom nav on the ad page
@@ -127,61 +127,60 @@ class WelPageviewState extends State<WelPageview> {
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
           child: Container(
-            height: 190.h,
+            height: 210.h,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
                   titles[dotIdx],
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 28.sp,
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w700,
+                    fontSize: 32.sp,
+                    fontFamily: 'SF Pro Display',
+                    fontWeight: FontWeight.w800,
+                    height: 1.15,
                   ),
                 ),
-
-               const SizedBox(height: 5),
-                //Spacer(),
-
+                SizedBox(height: 12.h),
                 Text(
                   Subtitles[dotIdx],
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    fontSize: 14.sp,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 15.sp,
+                    fontFamily: 'SF Pro Display',
                     fontWeight: FontWeight.w400,
+                    height: 1.35,
                   ),
                 ),
 
                 // const SizedBox(height: 15),
+                // Spacer(),
+                //
+                //
+                // Row(
+                //   mainAxisAlignment: MainAxisAlignment.center,
+                //   children: List.generate(GetDots(dataLength), (index) {
+                //     final bool isActive = dotIdx == index;
+                //     return Container(
+                //       margin: EdgeInsets.symmetric(horizontal: 4.w),
+                //       width: isActive ? 24.w : 8.w,
+                //       height: 8.h,
+                //       decoration: BoxDecoration(
+                //         color: isActive
+                //             ? Colors.white
+                //             : Colors.white.withValues(alpha: 0.3),
+                //         borderRadius: BorderRadius.circular(4.r),
+                //       ),
+                //     );
+                //   }),
+                // ),
+                //
+                // //const SizedBox(height: 15),
                 Spacer(),
-
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(GetDots(dataLength), (index) {
-                    final bool isActive = dotIdx == index;
-                    return Container(
-                      margin: EdgeInsets.symmetric(horizontal: 4.w),
-                      width: isActive ? 24.w : 8.w,
-                      height: 8.h,
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(4.r),
-                      ),
-                    );
-                  }),
-                ),
-
-                //const SizedBox(height: 15),
-                Spacer(),
-
 
                 //dots
                 GestureDetector(
@@ -193,7 +192,11 @@ class WelPageviewState extends State<WelPageview> {
                           builder: (_) => PremiumCreditView(
                             onboarding: true,
                             onDone: () {
-                              Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
+                              Get.offAll(
+                                () => BrandSelectionScreen(
+                                  manager: MyApp.globalManager,
+                                ),
+                              );
                             },
                           ),
                         ),
@@ -208,23 +211,31 @@ class WelPageviewState extends State<WelPageview> {
                   },
                   child: Container(
                     alignment: Alignment.center,
-                    width: 358.w,
-                    height: 48.h,
+                    width: 382.w,
+                    height: 56.h,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8.r),
+                      borderRadius: BorderRadius.circular(33.33.r),
                       gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF6F5BFF), Color(0xFF8A7DFF)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          offset: const Offset(0, 4),
+                          blurRadius: 20,
+                          spreadRadius: 0,
+                        ),
+                      ],
                     ),
                     child: Text(
-                      currentIndex == dataLength - 1 ? "Get Started" : 'Next',
+                      currentIndex == dataLength - 1 ? "Continue" : 'Continue',
                       style: TextStyle(
-                        fontSize: 14.sp,
+                        fontSize: 20.sp,
                         color: Colors.white,
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w500,
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -247,30 +258,75 @@ class WelPageviewState extends State<WelPageview> {
           top: false,
           child: Stack(
             children: [
-              PageView(
-                controller: pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    currentIndex = index;
-                  });
-                  // Show review only once when Welcome2 is reached.
-                  if (!_hasRequestedReview && index == 1) {
-                    _hasRequestedReview = true;
-                    AdsVariable.showRateUsDialogInIntro ?
-                    checkAndShowInAppReview('onboarding_rate_us'):null;
-                  }
-                },
-                // Without ad: [Welcome1, Welcome2, Welcome3]
-                // With ad:    [Welcome1, Welcome2, FullNativeAdScreen, Welcome3]
-                children: dataLength == 3
-                    ? [const Welcome1(), const Welcome2(), const Welcome3()]
-                    : [
-                        const Welcome1(),
-                        const Welcome2(),
-                        const FullNativeAdScreen(),
-                        const Welcome3(),
-                      ],
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: (dataLength == 4 && currentIndex == 2) ? null : 760.h,
+                bottom: (dataLength == 4 && currentIndex == 2) ? 0 : null,
+                child: PageView(
+                  controller: pageController,
+                  onPageChanged: (index) {
+                    setState(() {
+                      currentIndex = index;
+                    });
+                    // Show review only once when Welcome2 is reached.
+                    // if (!_hasRequestedReview && index == 1) {
+                    //   _hasRequestedReview = true;
+                    //   AdsVariable.showRateUsDialogInIntro ?
+                    //   checkAndShowInAppReview('onboarding_rate_us'):null;
+                    // }
+                  },
+                  // Without ad: [Welcome1, Welcome2, Welcome3]
+                  // With ad:    [Welcome1, Welcome2, FullNativeAdScreen, Welcome3]
+                  children: dataLength == 3
+                      ? [
+                          Welcome1(isActive: currentIndex == 0),
+                          Welcome2(isActive: currentIndex == 1),
+                          Welcome3(isActive: currentIndex == 2),
+                        ]
+                      : [
+                          Welcome1(isActive: currentIndex == 0),
+                          Welcome2(isActive: currentIndex == 1),
+                          const FullNativeAdScreen(),
+                          Welcome3(isActive: currentIndex == 3),
+                        ],
+                ),
               ),
+
+              // Positioned.fill(
+              //   child: Image.asset(
+              //     'assets/intro/image 61.png',
+              //     fit: BoxFit.cover,
+              //   ),
+              // ),
+
+              // Bottom black gradient shade for text readability
+              if (!(dataLength == 4 && currentIndex == 2))
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 450.h,
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.black,
+                            Colors.black.withValues(alpha: 0.95),
+                            Colors.black.withValues(alpha: 0.8),
+                            Colors.black.withValues(alpha: 0.4),
+                            Colors.black.withValues(alpha: 0.1),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
               // Show bottom nav ONLY if not the ad page
               if (!(dataLength == 4 && currentIndex == 2))
