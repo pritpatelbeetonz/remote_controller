@@ -21,6 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class AndroidTVRemotePlugin(
     private val context: Context
@@ -126,32 +127,40 @@ class AndroidTVRemotePlugin(
             "startPairing" -> startPairing(wrappedResult)
             "sendPin" -> sendPin(arguments as String, wrappedResult)
             "sendCommand" -> sendCommand(arguments as Map<String, Any>, wrappedResult)
+            "launchApp" -> launchApp(arguments as String, wrappedResult)
+            "sendText" -> sendText(arguments as String, wrappedResult)
             "disconnect" -> disconnect(wrappedResult)
             else -> wrappedResult.notImplemented()
         }
     }
 
     private fun generateCertificates(result: MethodChannel.Result) {
-        try {
-            Logger.d(Constants.TAG_PLUGIN, "Certificate generation requested")
-            certificateGenerator = CertificateGenerator()
-            val certResult = certificateGenerator!!.generateCertificates(context)
+        scope.launch(Dispatchers.IO) {
+            try {
+                Logger.d(Constants.TAG_PLUGIN, "Certificate generation requested")
+                certificateGenerator = CertificateGenerator()
+                val certResult = certificateGenerator!!.generateCertificates(context)
 
-            if (certResult.success) {
-                Logger.i(Constants.TAG_PLUGIN, "Certificates generated successfully. DER: ${certResult.derPath}, PKCS12: ${certResult.pkcs12Path}")
-                certificateManager = CertificateManager(context)
-                result.success(mapOf(
-                    "success" to true,
-                    "derPath" to certResult.derPath,
-                    "pkcs12Path" to certResult.pkcs12Path
-                ))
-            } else {
-                Logger.e(Constants.TAG_PLUGIN, "Certificates generation failed: ${certResult.error}")
-                result.error("CERT_ERROR", certResult.error, null)
+                Handler(Looper.getMainLooper()).post {
+                    if (certResult.success) {
+                        Logger.i(Constants.TAG_PLUGIN, "Certificates generated successfully. DER: ${certResult.derPath}, PKCS12: ${certResult.pkcs12Path}")
+                        certificateManager = CertificateManager(context)
+                        result.success(mapOf(
+                            "success" to true,
+                            "derPath" to certResult.derPath,
+                            "pkcs12Path" to certResult.pkcs12Path
+                        ))
+                    } else {
+                        Logger.e(Constants.TAG_PLUGIN, "Certificates generation failed: ${certResult.error}")
+                        result.error("CERT_ERROR", certResult.error, null)
+                    }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post {
+                    Logger.e(Constants.TAG_PLUGIN, "Exception during certificate generation", e)
+                    result.error("CERT_ERROR", e.message, null)
+                }
             }
-        } catch (e: Exception) {
-            Logger.e(Constants.TAG_PLUGIN, "Exception during certificate generation", e)
-            result.error("CERT_ERROR", e.message, null)
         }
     }
 
@@ -184,34 +193,42 @@ class AndroidTVRemotePlugin(
     }
 
     private fun connect(arguments: Map<String, Any>, result: MethodChannel.Result) {
-        try {
-            val host = arguments["host"] as String
-            val port = arguments["port"] as Int
-            val pkcs12Path = arguments["pkcs12Path"] as String
-            Logger.d(Constants.TAG_PLUGIN, "Connection requested to host=$host, port=$port, cert=$pkcs12Path")
+        scope.launch(Dispatchers.IO) {
+            try {
+                val host = arguments["host"] as String
+                val port = arguments["port"] as Int
+                val pkcs12Path = arguments["pkcs12Path"] as String
+                Logger.d(Constants.TAG_PLUGIN, "Connection requested to host=$host, port=$port, cert=$pkcs12Path")
 
-            if (certificateManager == null) {
-                certificateManager = CertificateManager(context)
+                if (certificateManager == null) {
+                    certificateManager = CertificateManager(context)
+                }
+
+                val sslContext = certificateManager?.createSSLContext(
+                    pkcs12Path = pkcs12Path,
+                    password = arguments["password"] as? String ?: ""
+                ) ?: throw Exception("SSL context creation failed")
+
+                tlsManager = TLSManager(sslContext)
+
+                val connected = tlsManager?.connect(host, port) == true
+
+                Handler(Looper.getMainLooper()).post {
+                    if (connected) {
+                        Logger.i(Constants.TAG_PLUGIN, "TLS Connection successfully established with $host:$port")
+                        pairingManager = PairingManager(tlsManager!!)
+                        result.success(mapOf("success" to true))
+                    } else {
+                        Logger.e(Constants.TAG_PLUGIN, "TLS Connection failed with $host:$port")
+                        result.error("CONNECTION_ERROR", "Failed to establish TLS connection", null)
+                    }
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post {
+                    Logger.e(Constants.TAG_PLUGIN, "Exception during connect", e)
+                    result.error("CONNECTION_ERROR", e.message, null)
+                }
             }
-
-            val sslContext = certificateManager?.createSSLContext(
-                pkcs12Path = pkcs12Path,
-                password = arguments["password"] as? String ?: ""
-            ) ?: throw Exception("SSL context creation failed")
-
-            tlsManager = TLSManager(sslContext)
-
-            if (tlsManager?.connect(host, port) == true) {
-                Logger.i(Constants.TAG_PLUGIN, "TLS Connection successfully established with $host:$port")
-                pairingManager = PairingManager(tlsManager!!)
-                result.success(mapOf("success" to true))
-            } else {
-                Logger.e(Constants.TAG_PLUGIN, "TLS Connection failed with $host:$port")
-                result.error("CONNECTION_ERROR", "Failed to establish TLS connection", null)
-            }
-        } catch (e: Exception) {
-            Logger.e(Constants.TAG_PLUGIN, "Exception during connect", e)
-            result.error("CONNECTION_ERROR", e.message, null)
         }
     }
 
@@ -291,6 +308,46 @@ class AndroidTVRemotePlugin(
             result.success(mapOf("success" to success))
         } catch (e: Exception) {
             Logger.e(Constants.TAG_PLUGIN, "Exception during sendCommand", e)
+            result.error("COMMAND_ERROR", e.message, null)
+        }
+    }
+
+    private fun launchApp(appLink: String, result: MethodChannel.Result) {
+        try {
+            Logger.d(Constants.TAG_PLUGIN, "Launch App requested with link: $appLink")
+            if (remoteController == null) {
+                if (tlsManager != null && tlsManager!!.isConnected()) {
+                    Logger.i(Constants.TAG_PLUGIN, "RemoteController was null but socket is connected. Initializing RemoteController.")
+                    remoteController = RemoteController(tlsManager!!)
+                } else {
+                    throw Exception("Remote session is not connected.")
+                }
+            }
+            val success = remoteController?.sendAppLink(appLink) ?: false
+            Logger.d(Constants.TAG_PLUGIN, "Launch App command sent. Success=$success")
+            result.success(mapOf("success" to success))
+        } catch (e: Exception) {
+            Logger.e(Constants.TAG_PLUGIN, "Exception during launchApp", e)
+            result.error("COMMAND_ERROR", e.message, null)
+        }
+    }
+
+    private fun sendText(text: String, result: MethodChannel.Result) {
+        try {
+            Logger.d(Constants.TAG_PLUGIN, "Send text requested: $text")
+            if (remoteController == null) {
+                if (tlsManager != null && tlsManager!!.isConnected()) {
+                    Logger.i(Constants.TAG_PLUGIN, "RemoteController was null but socket is connected. Initializing RemoteController.")
+                    remoteController = RemoteController(tlsManager!!)
+                } else {
+                    throw Exception("Remote session is not connected.")
+                }
+            }
+            val success = remoteController?.sendText(text) ?: false
+            Logger.d(Constants.TAG_PLUGIN, "Send text command sent. Success=$success")
+            result.success(mapOf("success" to success))
+        } catch (e: Exception) {
+            Logger.e(Constants.TAG_PLUGIN, "Exception during sendText", e)
             result.error("COMMAND_ERROR", e.message, null)
         }
     }

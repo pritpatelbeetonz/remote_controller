@@ -78,39 +78,65 @@ class ServiceDiscovery(
         }
     }
 
+        private val resolveQueue = java.util.concurrent.ConcurrentLinkedQueue<NsdServiceInfo>()
+    private var isResolving = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private fun resolveService(serviceInfo: NsdServiceInfo) {
-        resolveListener = object : NsdManager.ResolveListener {
-            override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                Logger.e(Constants.TAG_DISCOVERY, "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
+        resolveQueue.add(serviceInfo)
+        processNextResolve()
+    }
+
+    private fun processNextResolve() {
+        if (resolveQueue.isEmpty() || !isResolving.compareAndSet(false, true)) {
+            return
+        }
+
+        val serviceInfo = resolveQueue.poll()
+        if (serviceInfo == null) {
+            isResolving.set(false)
+            return
+        }
+
+        val listener = object : NsdManager.ResolveListener {
+            override fun onResolveFailed(resolvedInfo: NsdServiceInfo, errorCode: Int) {
+                Logger.e(Constants.TAG_DISCOVERY, "Resolve failed for ${resolvedInfo.serviceName}: $errorCode")
+                isResolving.set(false)
+                processNextResolve()
             }
 
-            override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                Logger.d(Constants.TAG_DISCOVERY, "Service resolved: ${serviceInfo.serviceName}")
+            override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
+                Logger.d(Constants.TAG_DISCOVERY, "Service resolved: ${resolvedInfo.serviceName}")
 
                 val device = TVDevice(
-                    name = serviceInfo.serviceName.split(".")[0],
-                    hostname = serviceInfo.serviceName,
-                    ipAddress = serviceInfo.host?.hostAddress ?: return,
-                    port = serviceInfo.port
+                    name = resolvedInfo.serviceName.split(".")[0],
+                    hostname = resolvedInfo.serviceName,
+                    ipAddress = resolvedInfo.host?.hostAddress ?: "",
+                    port = resolvedInfo.port
                 )
 
-                if (!discoveredDevices.any { it.ipAddress == device.ipAddress }) {
+                if (device.ipAddress.isNotEmpty() && !discoveredDevices.any { it.ipAddress == device.ipAddress }) {
                     discoveredDevices.add(device)
                     Logger.i(Constants.TAG_DISCOVERY, "Device added: ${device.name} at ${device.ipAddress}:${device.port}")
                     notifyCallbacks()
                 }
+
+                isResolving.set(false)
+                processNextResolve()
             }
         }
 
         try {
-            nsdManager.resolveService(serviceInfo, resolveListener)
+            nsdManager.resolveService(serviceInfo, listener)
         } catch (e: Exception) {
             Logger.e(Constants.TAG_DISCOVERY, "Resolve error: ${e.message}")
+            isResolving.set(false)
+            processNextResolve()
         }
     }
 
     fun stopDiscovery() {
         try {
+            Logger.d(Constants.TAG_DISCOVERY, "stopDiscovery called. Trace:", Exception("stopDiscovery Trace"))
             discoveryListener?.let {
                 nsdManager.stopServiceDiscovery(it)
             }

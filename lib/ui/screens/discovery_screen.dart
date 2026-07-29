@@ -36,12 +36,20 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       initialPort = '3000';
     } else if (_selectedBrand == 'Roku') {
       initialPort = '8060';
+    } else if (_selectedBrand == 'Amazon Fire TV') {
+      initialPort = '8080';
+    } else if (_selectedBrand == 'Apple TV') {
+      initialPort = '7000';
     } else {
       initialPort = '6466';
     }
     _portController = TextEditingController(text: initialPort);
     // Auto start scanning when discovery screen opens
-    widget.manager.startScan();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        widget.manager.startScan();
+      }
+    });
     widget.manager.addListener(_onStateChange);
 
     // Scan for 2 minutes. If no devices found, redirect to RemoteScreen anyway.
@@ -70,7 +78,19 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   void _onStateChange() {
-    if (widget.manager.connectionState == TvConnectionState.pairing) {
+    if (mounted) {
+      setState(() {});
+    }
+
+    if (widget.manager.connectionState == TvConnectionState.connected) {
+      _scanTimer?.cancel();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RemoteScreen(manager: widget.manager),
+        ),
+      );
+    } else if (widget.manager.connectionState == TvConnectionState.pairing) {
       _scanTimer?.cancel();
       // Transition to pairing screen
       Navigator.pushReplacement(
@@ -79,15 +99,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           builder: (_) => PairingScreen(manager: widget.manager),
         ),
       );
-    } else if (widget.manager.discoveredDevices.isNotEmpty &&
-        widget.manager.connectionState == TvConnectionState.disconnected) {
-      final matchingDevices = widget.manager.discoveredDevices
-          .where((d) => d.brand == widget.selectedBrand)
-          .toList();
-      if (matchingDevices.isNotEmpty) {
-        _scanTimer?.cancel();
-        widget.manager.connectToDevice(matchingDevices.first);
-      }
     }
   }
 
@@ -194,7 +205,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   ],
                   const SizedBox(height: 8),
                   Text(
-                    'Ensure your Android TV has remote services enabled and is connected to the same network.',
+                    'Ensure your ${widget.selectedBrand} is connected to the same local Wi-Fi network.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -310,6 +321,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   DropdownMenuItem(value: 'Samsung Tizen', child: Text('Samsung Tizen TV')),
                   DropdownMenuItem(value: 'LG webOS', child: Text('LG Smart TV (webOS)')),
                   DropdownMenuItem(value: 'Roku', child: Text('Roku TV')),
+                  DropdownMenuItem(value: 'Amazon Fire TV', child: Text('Amazon Fire TV')),
+                  DropdownMenuItem(value: 'Apple TV', child: Text('Apple TV')),
                 ],
                 onChanged: (val) {
                   if (val != null) {
@@ -321,6 +334,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                         _portController.text = '3000';
                       } else if (val == 'Roku') {
                         _portController.text = '8060';
+                      } else if (val == 'Amazon Fire TV') {
+                        _portController.text = '8080';
+                      } else if (val == 'Apple TV') {
+                        _portController.text = '7000';
                       } else {
                         _portController.text = '6466';
                       }
@@ -408,10 +425,12 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'This scan uses multicast DNS to locate Android TV or Google TV devices automatically.',
+                Text(
+                  widget.selectedBrand == 'Android TV'
+                      ? 'This scan uses multicast DNS to locate Android TV or Google TV devices automatically.'
+                      : 'This scan uses SSDP network discovery to locate ${widget.selectedBrand} devices automatically.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white54,
                     fontSize: 13,
                   ),

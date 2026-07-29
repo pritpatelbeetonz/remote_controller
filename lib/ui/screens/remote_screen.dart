@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -15,32 +18,239 @@ class RemoteScreen extends StatefulWidget {
   State<RemoteScreen> createState() => _RemoteScreenState();
 }
 
-class _RemoteScreenState extends State<RemoteScreen> {
+class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderStateMixin {
   bool _showConsole = false;
+  late TabController _tabController;
+  int _currentTabIndex = 0;
+
+  // App Launcher State
+  List<Map<String, String>> _installedApps = [];
+  bool _isLoadingApps = false;
+
+  // Casting State
+  final TextEditingController _castUrlController = TextEditingController(
+    text: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+  );
+  String _selectedCastType = 'v'; // 'v' = Video, 'p' = Photo, 'm' = Music
+  bool _isCasting = false;
+  String? _activeCastName;
+
+  // Keyboard State
+  final TextEditingController _keyboardController = TextEditingController();
+  bool _sendCharByChar = true;
+
+  // Swipe Trackpad/Drag Pad State
+  bool _useTrackpad = false;
+  double _dragAccumulatorX = 0.0;
+  double _dragAccumulatorY = 0.0;
+  static const double _swipeThreshold = 40.0;
+
+  late final List<String> _activeTabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeTabs = ['control'];
+    if (_supportsAppLauncher) _activeTabs.add('apps');
+    if (_supportsCasting) _activeTabs.add('cast');
+    if (_supportsKeyboard) _activeTabs.add('keyboard');
+
+    _tabController = TabController(length: _activeTabs.length, vsync: this);
+    _tabController.addListener(() {
+      setState(() {
+        _currentTabIndex = _tabController.index;
+      });
+      if (_activeTabs[_tabController.index] == 'apps') {
+        _loadApps();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _castUrlController.dispose();
+    _keyboardController.dispose();
+    super.dispose();
+  }
 
   void _sendAction(TvKey key) {
     if (widget.manager.connectionState != TvConnectionState.connected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Not connected to TV. Redirecting to brand selection...'),
-          backgroundColor: AppTheme.error,
-          duration: Duration(seconds: 2),
-        ),
-      );
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
-        (route) => false,
-      );
+      _showNotConnectedSnackBar();
       return;
     }
     widget.manager.sendPress(key);
   }
 
+  void _showNotConnectedSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Not connected to TV. Redirecting to brand selection...'),
+        backgroundColor: AppTheme.error,
+        duration: Duration(seconds: 2),
+      ),
+    );
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
+      (route) => false,
+    );
+  }
+
+  // Load Apps
+  Future<void> _loadApps() async {
+    if (widget.manager.connectionState != TvConnectionState.connected) return;
+    setState(() {
+      _isLoadingApps = true;
+    });
+    try {
+      final apps = await widget.manager.getInstalledApps();
+      setState(() {
+        _installedApps = apps;
+        _isLoadingApps = false;
+      });
+    } catch (e) {
+      widget.manager.addLocalLog('ERROR', 'UI', 'Failed to load apps: $e');
+      setState(() {
+        _isLoadingApps = false;
+      });
+    }
+  }
+
+  // Launch App
+  Future<void> _launchApp(String id, String name) async {
+    final success = await widget.manager.launchApp(id);
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Successfully launched $name'),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to launch $name'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
+  // Cast URL
+  Future<void> _startCast(String url, String type, {String? name}) async {
+    setState(() {
+      _isCasting = true;
+      _activeCastName = name ?? 'Web Stream';
+    });
+    
+    final success = await widget.manager.castMedia(
+      url: url,
+      type: type,
+      name: _activeCastName,
+    );
+
+    if (!success) {
+      setState(() {
+        _isCasting = false;
+        _activeCastName = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to start casting session'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
+  // Stop Cast
+  Future<void> _stopCast() async {
+    await widget.manager.stopCasting();
+    setState(() {
+      _isCasting = false;
+      _activeCastName = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Casting session stopped'),
+        backgroundColor: AppTheme.info,
+      ),
+    );
+  }
+
+  // Pick and cast local file from mobile
+  Future<void> _pickAndCastFile(String type) async {
+    try {
+      FileType fileType;
+      String typeLabel;
+      if (type == 'p') {
+        fileType = FileType.image;
+        typeLabel = 'Image';
+      } else if (type == 'v') {
+        fileType = FileType.video;
+        typeLabel = 'Video';
+      } else {
+        fileType = FileType.audio;
+        typeLabel = 'Audio';
+      }
+
+      widget.manager.addLocalLog('INFO', 'UI', 'Opening file picker for local $typeLabel...');
+      final result = await FilePicker.pickFiles(type: fileType);
+
+      if (result != null && result.files.single.path != null) {
+        final filePath = result.files.single.path!;
+        final fileName = result.files.single.name;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Starting local server & casting $typeLabel: $fileName...'),
+            backgroundColor: AppTheme.info,
+          ),
+        );
+
+        await _startCast(filePath, type, name: fileName);
+      } else {
+        widget.manager.addLocalLog('INFO', 'UI', 'File picking cancelled by user.');
+      }
+    } catch (e) {
+      widget.manager.addLocalLog('ERROR', 'UI', 'Failed to pick or cast local file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Casting failed: $e'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
+  // Keyboard Submission
+  void _onKeyboardSubmit(String text) {
+    if (text.isEmpty) return;
+    if (_sendCharByChar) {
+      // Sent already, just clear
+      _keyboardController.clear();
+    } else {
+      widget.manager.sendText(text);
+      _keyboardController.clear();
+    }
+  }
+
+  bool get _isRoku => widget.manager.currentDevice?.brand == 'Roku';
+  bool get _isSamsung => widget.manager.currentDevice?.brand == 'Samsung Tizen';
+  bool get _isAndroidTv => widget.manager.currentDevice?.brand == 'Android TV';
+  bool get _isLg => widget.manager.currentDevice?.brand == 'LG webOS';
+  bool get _isAppleTv => widget.manager.currentDevice?.brand == 'Apple TV';
+  bool get _isAmazonFireTv => widget.manager.currentDevice?.brand == 'Amazon Fire TV';
+
+  bool get _supportsAppLauncher => _isRoku || _isSamsung || _isAndroidTv || _isAmazonFireTv;
+  bool get _supportsCasting => _isRoku || _isSamsung || _isAndroidTv || _isLg || _isAppleTv;
+  bool get _supportsKeyboard => _isRoku || _isSamsung || _isAndroidTv || _isLg;
+
   @override
   Widget build(BuildContext context) {
     final manager = widget.manager;
-    final deviceName = manager.currentDevice?.name ?? 'Android TV';
+    final deviceName = manager.currentDevice?.name ?? 'Universal TV';
 
     return Scaffold(
       body: SafeArea(
@@ -53,9 +263,7 @@ class _RemoteScreenState extends State<RemoteScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.power_settings_new, color: AppTheme.error),
-                    onPressed: () {
-                      _showDisconnectConfirmation();
-                    },
+                    onPressed: _showDisconnectConfirmation,
                   ),
                   Expanded(
                     child: Column(
@@ -69,6 +277,7 @@ class _RemoteScreenState extends State<RemoteScreen> {
                             letterSpacing: 1.5,
                             color: Colors.white,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -89,12 +298,12 @@ class _RemoteScreenState extends State<RemoteScreen> {
                                   ? 'CONNECTED'
                                   : 'DISCONNECTED',
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: manager.connectionState == TvConnectionState.connected
-                                    ? AppTheme.success
-                                    : AppTheme.error,
-                                letterSpacing: 0.5,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: manager.connectionState == TvConnectionState.connected
+                                      ? AppTheme.success
+                                      : AppTheme.error,
+                                  letterSpacing: 0.5,
                               ),
                             ),
                           ],
@@ -118,150 +327,760 @@ class _RemoteScreenState extends State<RemoteScreen> {
               ),
             ),
 
-            // Remote Control Board
+            // Tab Views
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // Power & Mute Top Panel
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildRoundButton(
-                          icon: Icons.power_settings_new,
-                          color: AppTheme.error,
-                          onPressed: () => _sendAction(TvKey.power),
-                        ),
-                        _buildRoundButton(
-                          icon: Icons.volume_mute,
-                          color: Colors.white60,
-                          onPressed: () => _sendAction(TvKey.mute),
-                        ),
-                      ],
-                    ),
-
-                    // Tactile D-Pad Component
-                    _buildTactileDpad(),
-
-                    // Action buttons (Back, Home, Play/Pause)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildActionButton(
-                          icon: Icons.arrow_back,
-                          label: 'BACK',
-                          onPressed: () => _sendAction(TvKey.back),
-                        ),
-                        _buildActionButton(
-                          icon: Icons.play_arrow,
-                          label: 'PLAY/PAUSE',
-                          onPressed: () => _sendAction(TvKey.playPause),
-                        ),
-                        _buildActionButton(
-                          icon: Icons.home_outlined,
-                          label: 'HOME',
-                          onPressed: () => _sendAction(TvKey.home),
-                        ),
-                      ],
-                    ),
-
-                    // Volume Controls
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.border),
+              child: Stack(
+                children: [
+                  TabBarView(
+                    controller: _tabController,
+                    physics: const NeverScrollableScrollPhysics(), // tab changes controlled by nav bar
+                    children: _activeTabs.map((tab) {
+                      if (tab == 'control') {
+                        return _buildRemotePanel();
+                      } else if (tab == 'apps') {
+                        return _buildAppLauncher();
+                      } else if (tab == 'cast') {
+                        return _buildCastingHub();
+                      } else {
+                        return _buildKeyboardInput();
+                      }
+                    }).toList(),
+                  ),
+                  if (_showConsole)
+                    Positioned.fill(
+                      child: LogConsoleDrawer(
+                        manager: manager,
+                        onClose: () {
+                          setState(() {
+                            _showConsole = false;
+                          });
+                        },
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.volume_down, color: Colors.white70),
-                            onPressed: () => _sendAction(TvKey.volumeDown),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppTheme.border, width: 1)),
+          color: AppTheme.surface,
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentTabIndex,
+          onTap: (index) {
+            _tabController.animateTo(index);
+          },
+          backgroundColor: AppTheme.surface,
+          selectedItemColor: AppTheme.primary,
+          unselectedItemColor: Colors.white30,
+          type: BottomNavigationBarType.fixed,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          items: _activeTabs.map((tab) {
+            if (tab == 'control') {
+              return const BottomNavigationBarItem(
+                icon: Icon(Icons.settings_remote),
+                label: 'Control',
+              );
+            } else if (tab == 'apps') {
+              return const BottomNavigationBarItem(
+                icon: Icon(Icons.apps),
+                label: 'Apps',
+              );
+            } else if (tab == 'cast') {
+              return const BottomNavigationBarItem(
+                icon: Icon(Icons.cast),
+                label: 'Cast',
+              );
+            } else {
+              return const BottomNavigationBarItem(
+                icon: Icon(Icons.keyboard),
+                label: 'Keyboard',
+              );
+            }
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // --- TAB PANELS ---
+
+  // Tab 1: Remote Control Panel
+  Widget _buildRemotePanel() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Power & Mute Top Panel
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildRoundButton(
+                icon: Icons.power_settings_new,
+                color: AppTheme.error,
+                onPressed: () => _sendAction(TvKey.power),
+              ),
+              _buildRoundButton(
+                icon: Icons.volume_mute,
+                color: Colors.white60,
+                onPressed: () => _sendAction(TvKey.mute),
+              ),
+            ],
+          ),
+
+          // Mode Toggle and D-Pad/Swipe Pad container
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _useTrackpad = false;
+                      });
+                      HapticFeedback.lightImpact();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !_useTrackpad ? AppTheme.primary.withOpacity(0.15) : Colors.transparent,
+                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
+                        border: Border.all(
+                          color: !_useTrackpad ? AppTheme.primary : AppTheme.border,
+                        ),
+                      ),
+                      child: Text(
+                        'Classic D-Pad',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: !_useTrackpad ? AppTheme.primary : Colors.white54,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _useTrackpad = true;
+                      });
+                      HapticFeedback.lightImpact();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _useTrackpad ? AppTheme.primary.withOpacity(0.15) : Colors.transparent,
+                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+                        border: Border.all(
+                          color: _useTrackpad ? AppTheme.primary : AppTheme.border,
+                        ),
+                      ),
+                      child: Text(
+                        'Swipe Trackpad',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _useTrackpad ? AppTheme.primary : Colors.white54,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _useTrackpad ? _buildSwipeTrackpad() : _buildTactileDpad(),
+            ],
+          ),
+
+          // Action buttons (Back, Home, Play/Pause)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildActionButton(
+                icon: Icons.arrow_back,
+                label: 'BACK',
+                onPressed: () => _sendAction(TvKey.back),
+              ),
+              _buildActionButton(
+                icon: Icons.play_arrow,
+                label: 'PLAY/PAUSE',
+                onPressed: () => _sendAction(TvKey.playPause),
+              ),
+              _buildActionButton(
+                icon: Icons.home_outlined,
+                label: 'HOME',
+                onPressed: () => _sendAction(TvKey.home),
+              ),
+            ],
+          ),
+
+          // Volume Controls
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.volume_down, color: Colors.white70),
+                  onPressed: () => _sendAction(TvKey.volumeDown),
+                ),
+                const Text(
+                  'VOLUME',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                    color: Colors.white38,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up, color: Colors.white70),
+                  onPressed: () => _sendAction(TvKey.volumeUp),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Tab 2: App Launcher Grid
+  Widget _buildAppLauncher() {
+    if (!_isRoku && !_isSamsung && !_isAndroidTv && !_isAmazonFireTv) {
+      return _buildBrandNotSupportedOverlay('Application Launcher');
+    }
+
+    if (_isLoadingApps) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
+        ),
+      );
+    }
+
+    if (_installedApps.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.apps_outage, size: 48, color: Colors.white24),
+            const SizedBox(height: 16),
+            const Text(
+              'No Apps Found',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white70),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _loadApps,
+              icon: const Icon(Icons.refresh, color: AppTheme.primary),
+              label: const Text('Reload Apps', style: TextStyle(color: AppTheme.primary)),
+            )
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadApps,
+      color: AppTheme.primary,
+      backgroundColor: AppTheme.surfaceElevated,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(20),
+        itemCount: _installedApps.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.95,
+        ),
+        itemBuilder: (context, index) {
+          final app = _installedApps[index];
+          return GestureDetector(
+            onTap: () => _launchApp(app['id']!, app['name']!),
+            child: Card(
+              color: AppTheme.surfaceElevated,
+              margin: EdgeInsets.zero,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12.0, left: 12.0, right: 12.0),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          app['iconUrl'] ?? '',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: Colors.white12,
+                            child: const Icon(Icons.tv, color: Colors.white30, size: 32),
                           ),
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: Colors.white12,
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    child: Text(
+                      app['name']!,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // Tab 3: Casting Hub
+  Widget _buildCastingHub() {
+    if (!_isRoku && !_isSamsung && !_isAndroidTv && !_isLg && !_isAppleTv) {
+      return _buildBrandNotSupportedOverlay('Screen & Media Casting');
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Active session card
+          if (_isCasting)
+            Card(
+              color: AppTheme.surfaceElevated,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppTheme.success, width: 1.5),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    const Icon(Icons.play_circle_filled, color: AppTheme.success, size: 36),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           const Text(
-                            'VOLUME',
+                            'CURRENTLY CASTING',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 9,
                               fontWeight: FontWeight.bold,
+                              color: AppTheme.success,
                               letterSpacing: 1.0,
-                              color: Colors.white38,
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.volume_up, color: Colors.white70),
-                            onPressed: () => _sendAction(TvKey.volumeUp),
+                          const SizedBox(height: 2),
+                          Text(
+                            _activeCastName ?? 'Web Media Stream',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
+                    ElevatedButton(
+                      onPressed: _stopCast,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.error,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: const Text('STOP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    )
                   ],
                 ),
               ),
             ),
+          const SizedBox(height: 12),
 
-            // Live debug log console drawer
-            if (_showConsole)
-              LogConsoleDrawer(
-                manager: manager,
-                onClose: () {
+          // Casting URL input card
+          Card(
+            color: AppTheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'CAST WEB LINK',
+                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _castUrlController,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'http://example.com/movie.mp4',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Cast Type selection
+                  Row(
+                    children: [
+                      const Text('Type:', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedCastType,
+                          dropdownColor: AppTheme.surfaceElevated,
+                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          decoration: const InputDecoration(
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                            border: InputBorder.none,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'v', child: Text('🎬 Video (MP4/MOV)')),
+                            DropdownMenuItem(value: 'p', child: Text('🖼️ Photo (JPG/PNG)')),
+                            DropdownMenuItem(value: 'm', child: Text('🎵 Music (MP3/WAV)')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedCastType = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      final url = _castUrlController.text.trim();
+                      if (url.isEmpty) return;
+                      _startCast(url, _selectedCastType, name: url.split('/').last);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.black,
+                      elevation: 5,
+                      shadowColor: AppTheme.primary.withOpacity(0.4),
+                    ),
+                    child: const Text('CAST MEDIA LINK'),
+                  )
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Casting Local files card
+          Card(
+            color: AppTheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'LOCAL FILE STREAMING',
+                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Select and stream local media files directly from your mobile device to the TV.',
+                    style: TextStyle(fontSize: 12, color: Colors.white54),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildLocalCastOption(
+                          icon: Icons.image,
+                          label: 'Image',
+                          color: AppTheme.primary,
+                          onPressed: () => _pickAndCastFile('p'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildLocalCastOption(
+                          icon: Icons.movie,
+                          label: 'Video',
+                          color: AppTheme.secondary,
+                          onPressed: () => _pickAndCastFile('v'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildLocalCastOption(
+                          icon: Icons.audiotrack,
+                          label: 'Audio',
+                          color: AppTheme.success,
+                          onPressed: () => _pickAndCastFile('m'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Quick samples section
+          const SizedBox(height: 20),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'QUICK WEB SAMPLE STREAMS',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white30, letterSpacing: 0.5),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildSampleMediaTile(
+            title: 'Sintel Open Movie Video',
+            subtitle: 'MP4 Video Stream (1080p)',
+            url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+            type: 'v',
+          ),
+          _buildSampleMediaTile(
+            title: 'Beautiful Abstract Wallpaper',
+            subtitle: 'Unsplash JPEG Image',
+            url: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800',
+            type: 'p',
+          ),
+          _buildSampleMediaTile(
+            title: 'Ambient Music Track',
+            subtitle: 'SoundHelix Audio Stream',
+            url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+            type: 'm',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSampleMediaTile({
+    required String title,
+    required String subtitle,
+    required String url,
+    required String type,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      color: AppTheme.surfaceElevated.withOpacity(0.5),
+      child: ListTile(
+        title: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white54)),
+        trailing: const Icon(Icons.cast, color: AppTheme.primary, size: 20),
+        onTap: () {
+          _castUrlController.text = url;
+          setState(() {
+            _selectedCastType = type;
+          });
+          _startCast(url, type, name: title);
+        },
+      ),
+    );
+  }
+
+  // Tab 4: Keyboard Input
+  Widget _buildKeyboardInput() {
+    if (!_isRoku && !_isSamsung && !_isAndroidTv && !_isLg) {
+      return _buildBrandNotSupportedOverlay('Keyboard Input');
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'REMOTE KEYBOARD',
+            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Type text here to stream it directly to input fields and search screens on your TV.',
+            style: TextStyle(fontSize: 12, color: Colors.white54),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _keyboardController,
+            autofocus: true,
+            style: const TextStyle(fontSize: 16),
+            onChanged: (text) {
+              if (_sendCharByChar && text.isNotEmpty) {
+                widget.manager.sendText(text.substring(text.length - 1));
+              }
+            },
+            onSubmitted: _onKeyboardSubmit,
+            decoration: InputDecoration(
+              hintText: 'Tap here to begin typing...',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear, color: Colors.white30),
+                onPressed: () => _keyboardController.clear(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Modes switch
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Send character-by-character', style: TextStyle(fontSize: 12, color: Colors.white54)),
+              Switch(
+                value: _sendCharByChar,
+                onChanged: (val) {
                   setState(() {
-                    _showConsole = false;
+                    _sendCharByChar = val;
                   });
                 },
+                activeColor: AppTheme.primary,
+              )
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Custom Action Keys Panel
+          const Text(
+            'KEYBOARD ACTIONS',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white30, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildKeyboardActionBtn(
+                label: 'BACKSPACE',
+                icon: Icons.backspace,
+                onPressed: () => _sendAction(TvKey.back), // using back or we can expose backspace key press
               ),
+              _buildKeyboardActionBtn(
+                label: 'ENTER',
+                icon: Icons.subdirectory_arrow_left,
+                onPressed: () {
+                  if (!_sendCharByChar) {
+                    _onKeyboardSubmit(_keyboardController.text);
+                  } else {
+                    _sendAction(TvKey.select);
+                  }
+                },
+              ),
+              _buildKeyboardActionBtn(
+                label: 'SPACEBAR',
+                icon: Icons.space_bar,
+                onPressed: () {
+                  if (_sendCharByChar) {
+                    widget.manager.sendText(' ');
+                  } else {
+                    _keyboardController.text += ' ';
+                  }
+                },
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeyboardActionBtn({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Expanded(
+      child: Card(
+        color: AppTheme.surfaceElevated,
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: AppTheme.primary, size: 20),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white54),
+                )
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- BRAND NOT SUPPORTED OVERLAY ---
+  Widget _buildBrandNotSupportedOverlay(String featureName) {
+    final brand = widget.manager.currentDevice?.brand ?? 'This device';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.info_outline, color: AppTheme.warning, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              '$featureName Limited',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'The $featureName feature is currently optimized and supported on Roku TV devices. $brand does not support this control mechanism natively over ECP.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _showDisconnectConfirmation() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        title: const Text('Disconnect Device?'),
-        content: const Text('Would you like to search for other devices of the same brand or switch TV brands entirely?'),
-        actions: [
-          TextButton(
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
-            onPressed: () => Navigator.pop(context),
-          ),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: AppTheme.primary, side: const BorderSide(color: AppTheme.primary)),
-            child: const Text('SWITCH BRAND'),
-            onPressed: () {
-              Navigator.pop(context);
-              widget.manager.disconnect();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
-                (route) => false,
-              );
-            },
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
-            child: const Text('DISCONNECT'),
-            onPressed: () {
-              final brand = widget.manager.currentDevice?.brand ?? 'Android TV';
-              Navigator.pop(context);
-              widget.manager.disconnect();
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => DiscoveryScreen(manager: widget.manager, selectedBrand: brand)),
-                (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  // --- HELPER COMPONENT BUILDERS ---
 
   Widget _buildRoundButton({
     required IconData icon,
@@ -427,6 +1246,172 @@ class _RemoteScreenState extends State<RemoteScreen> {
           icon,
           color: Colors.white54,
           size: 32,
+        ),
+      ),
+    );
+  }
+
+  void _showDisconnectConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Disconnect Device?'),
+        content: const Text('Would you like to search for other devices of the same brand or switch TV brands entirely?'),
+        actions: [
+          TextButton(
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+            onPressed: () => Navigator.pop(context),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: AppTheme.primary, side: const BorderSide(color: AppTheme.primary)),
+            child: const Text('SWITCH BRAND'),
+            onPressed: () {
+              Navigator.pop(context);
+              widget.manager.disconnect();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: widget.manager)),
+                (route) => false,
+              );
+            },
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            child: const Text('DISCONNECT'),
+            onPressed: () {
+              final brand = widget.manager.currentDevice?.brand ?? 'Android TV';
+              Navigator.pop(context);
+              widget.manager.disconnect();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => DiscoveryScreen(manager: widget.manager, selectedBrand: brand)),
+                (route) => false,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocalCastOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      height: 76,
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceElevated,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSwipeTrackpad() {
+    return GestureDetector(
+      onPanStart: (details) {
+        _dragAccumulatorX = 0.0;
+        _dragAccumulatorY = 0.0;
+      },
+      onPanUpdate: (details) {
+        _dragAccumulatorX += details.delta.dx;
+        _dragAccumulatorY += details.delta.dy;
+
+        if (_dragAccumulatorX.abs() > _swipeThreshold) {
+          if (_dragAccumulatorX > 0) {
+            _sendAction(TvKey.right);
+          } else {
+            _sendAction(TvKey.left);
+          }
+          _dragAccumulatorX = 0.0;
+          _dragAccumulatorY = 0.0;
+          HapticFeedback.lightImpact();
+        } else if (_dragAccumulatorY.abs() > _swipeThreshold) {
+          if (_dragAccumulatorY > 0) {
+            _sendAction(TvKey.down);
+          } else {
+            _sendAction(TvKey.up);
+          }
+          _dragAccumulatorX = 0.0;
+          _dragAccumulatorY = 0.0;
+          HapticFeedback.lightImpact();
+        }
+      },
+      onPanEnd: (details) {
+        _dragAccumulatorX = 0.0;
+        _dragAccumulatorY = 0.0;
+      },
+      onTap: () {
+        _sendAction(TvKey.select);
+        HapticFeedback.mediumImpact();
+      },
+      child: Container(
+        width: 220,
+        height: 220,
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.border, width: 2),
+          boxShadow: AppTheme.glowShadow(AppTheme.primary.withOpacity(0.3)),
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.swipe,
+                    color: AppTheme.primary.withOpacity(0.4),
+                    size: 32,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'SWIPE TO NAVIGATE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.3),
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'TAP TO SELECT',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primary.withOpacity(0.5),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

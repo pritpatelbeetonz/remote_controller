@@ -25,10 +25,10 @@ import java.security.Security
 class CertificateGenerator {
 
     init {
-        // Add BouncyCastle provider for certificate generation
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(BouncyCastleProvider())
-        }
+        // ⚠️ CRITICAL FIX 1: Remove Android's restricted native "BC" provider first
+        Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME)
+        // Add the full, custom BouncyCastle jar package dependency instead
+        Security.addProvider(BouncyCastleProvider())
     }
 
     /**
@@ -75,7 +75,8 @@ class CertificateGenerator {
     }
 
     private fun generateKeyPair(): KeyPair {
-        val keyGen = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME)
+        // FIX 2: Let Android automatically resolve RSA key generation without hardcoding the provider link
+        val keyGen = KeyPairGenerator.getInstance("RSA")
         keyGen.initialize(2048)
         return keyGen.generateKeyPair()
     }
@@ -112,16 +113,15 @@ class CertificateGenerator {
             BasicConstraints(true)
         )
 
-        // Create content signer
-        val contentSigner: ContentSigner = JcaContentSignerBuilder("SHA256WithRSA")
-            .setProvider(BouncyCastleProvider.PROVIDER_NAME)
+        // FIX 3: Remove .setProvider(...) so it uses our registered runtime fallback provider cleanly
+        val contentSigner: ContentSigner = JcaContentSignerBuilder("SHA256withRSA")
             .build(privateKey)
 
         // Build certificate
         val certHolder = builder.build(contentSigner)
 
+        // FIX 4: Use default instance converter provider context
         return JcaX509CertificateConverter()
-            .setProvider(BouncyCastleProvider.PROVIDER_NAME)
             .getCertificate(certHolder)
     }
 
@@ -148,8 +148,8 @@ class CertificateGenerator {
         val fileName = "cert.p12"
         val file = File(context.filesDir, fileName)
 
-        // Create PKCS#12 KeyStore
-        val keyStore = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME)
+        // FIX 5: Use regular instance resolution rather than forcing "BC" target
+        val keyStore = KeyStore.getInstance("PKCS12")
         keyStore.load(null, null)
 
         // Add certificate and private key

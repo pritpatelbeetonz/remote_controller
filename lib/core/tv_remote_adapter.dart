@@ -75,6 +75,30 @@ abstract class TvRemoteAdapter {
   /// Send a button key press command.
   Future<bool> sendKey(TvKey key);
 
+  /// Get list of installed applications/channels on the TV.
+  /// Returns a list of maps containing 'id', 'name', and optionally 'iconUrl'.
+  Future<List<Map<String, String>>> getInstalledApps();
+
+  /// Launch a specific app/channel by ID.
+  Future<bool> launchApp(String appId);
+
+  /// Send a string of text dynamically.
+  Future<bool> sendText(String text);
+
+  /// Cast media (video, photo, music) to the TV.
+  /// [url] represents either a web media URL or a local HTTP server URL.
+  /// [type] is 'v' (video), 'p' (photo), or 'm' (music).
+  /// [name] is the optional title of the media, and [format] is the file format extension.
+  Future<bool> castMedia({
+    required String url,
+    required String type,
+    String? name,
+    String? format,
+  });
+
+  /// Stop the current media cast.
+  Future<void> stopCasting();
+
   /// Stream of log messages from the underlying adapter/native layer.
   Stream<Map<String, dynamic>> get logs;
 }

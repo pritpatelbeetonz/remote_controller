@@ -81,6 +81,20 @@ class RemoteController(
         }
     }
 
+    fun sendAppLink(appLink: String): Boolean {
+        return try {
+            val message = ProtobufMessage.createAppLinkMessage(appLink)
+            val result = tlsManager.sendData(message)
+            if (result) {
+                Logger.d(Constants.TAG_REMOTE, "App link sent: $appLink")
+            }
+            result
+        } catch (e: Exception) {
+            Logger.e(Constants.TAG_REMOTE, "Send app link error: ${e.message}")
+            false
+        }
+    }
+
     fun destroy() {
         try {
             processingJob?.cancel()

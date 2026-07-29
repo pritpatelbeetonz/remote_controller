@@ -8,6 +8,8 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 class CertificateManager(private val context: Context) {
@@ -34,7 +36,7 @@ class CertificateManager(private val context: Context) {
         password: String = ""
     ): KeyStore? {
         return try {
-            val keyStore = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME)
+            val keyStore = KeyStore.getInstance("PKCS12")
             FileInputStream(pkcs12Path).use { fis ->
                 keyStore.load(fis, password.toCharArray())
             }
@@ -51,11 +53,17 @@ class CertificateManager(private val context: Context) {
         return try {
             val keyStore = loadPKCS12KeyStore(pkcs12Path, password) ?: return null
 
-            val kmf = KeyManagerFactory.getInstance("SunX509")
+            val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
             kmf.init(keyStore, password.toCharArray())
 
+            val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            })
+
             val sslContext = SSLContext.getInstance("TLSv1.2")
-            sslContext.init(kmf.keyManagers, null, null)
+            sslContext.init(kmf.keyManagers, trustAllCerts, java.security.SecureRandom())
 
             sslContext
         } catch (e: Exception) {

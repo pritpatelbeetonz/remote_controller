@@ -90,6 +90,28 @@ object ProtobufMessage {
     }
 
     /**
+     * Create application link / deep link launch message
+     */
+    fun createAppLinkMessage(appLink: String): ByteArray {
+        val innerOut = ByteArrayOutputStream()
+        val linkBytes = appLink.toByteArray()
+        // field 1 (app_link), wire type 2 (length-delimited)
+        writeVarint(innerOut, 1 shl 3 or 2)
+        writeVarint(innerOut, linkBytes.size)
+        innerOut.write(linkBytes)
+
+        val innerBytes = innerOut.toByteArray()
+
+        val out = ByteArrayOutputStream()
+        // field 90 (remote_app_link_launch_request), wire type 2 (length-delimited)
+        writeVarint(out, 90 shl 3 or 2)
+        writeVarint(out, innerBytes.size)
+        out.write(innerBytes)
+
+        return out.toByteArray()
+    }
+
+    /**
      * Write variable-length integer (varint) to ByteArrayOutputStream
      */
     private fun writeVarint(out: ByteArrayOutputStream, value: Int) {

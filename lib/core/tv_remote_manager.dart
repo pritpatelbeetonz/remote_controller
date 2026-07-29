@@ -5,6 +5,8 @@ import '../adapters/android_tv_adapter.dart';
 import '../adapters/samsung_tizen_adapter.dart';
 import '../adapters/lg_webos_adapter.dart';
 import '../adapters/roku_adapter.dart';
+import '../adapters/amazon_fire_tv_adapter.dart';
+import '../adapters/apple_tv_adapter.dart';
 
 enum TvConnectionState {
   disconnected,
@@ -40,6 +42,8 @@ class TvRemoteManager extends ChangeNotifier {
     SamsungTizenAdapter(),
     LgWebOsAdapter(),
     RokuAdapter(),
+    AmazonFireTvAdapter(),
+    AppleTvAdapter(),
   ];
 
   List<TvDevice> _discoveredDevices = [];
@@ -62,6 +66,13 @@ class TvRemoteManager extends ChangeNotifier {
 
   String? _pairingStatusMessage;
   String? get pairingStatusMessage => _pairingStatusMessage;
+
+  bool _bypassAuthentication = false;
+  bool get bypassAuthentication => _bypassAuthentication;
+  set bypassAuthentication(bool value) {
+    _bypassAuthentication = value;
+    notifyListeners();
+  }
 
   final List<StreamSubscription> _subscriptions = [];
 
@@ -134,6 +145,12 @@ class TvRemoteManager extends ChangeNotifier {
     if (brand == 'Roku') {
       return adapters.firstWhere((a) => a is RokuAdapter);
     }
+    if (brand == 'Amazon Fire TV') {
+      return adapters.firstWhere((a) => a is AmazonFireTvAdapter);
+    }
+    if (brand == 'Apple TV') {
+      return adapters.firstWhere((a) => a is AppleTvAdapter);
+    }
     return adapters.firstWhere((a) => a is AndroidTvAdapter);
   }
 
@@ -146,7 +163,7 @@ class TvRemoteManager extends ChangeNotifier {
     addLocalLog('INFO', 'MANAGER', 'Starting network service discovery for all brands...');
     final Map<String, List<TvDevice>> brandDevices = {};
 
-    for (final adapter in adapters) {
+    final scanFutures = adapters.map((adapter) async {
       try {
         await adapter.startDiscovery((devices) {
           if (devices.isNotEmpty) {
@@ -165,7 +182,10 @@ class TvRemoteManager extends ChangeNotifier {
       } catch (e) {
         addLocalLog('ERROR', 'MANAGER', 'Discovery initialization failed for adapter: $e');
       }
-    }
+    }).toList();
+
+    // Await all discovery scans starting in parallel
+    await Future.wait(scanFutures);
   }
 
   Future<void> stopScan() async {
@@ -180,6 +200,13 @@ class TvRemoteManager extends ChangeNotifier {
 
   Future<void> connectToDevice(TvDevice device) async {
     _currentDevice = device;
+    if (_bypassAuthentication) {
+      _connectionState = TvConnectionState.connected;
+      addLocalLog('INFO', 'MANAGER', 'Connecting to TV: ${device.name} (Bypassing authentication for UI testing)...');
+      notifyListeners();
+      return;
+    }
+
     _connectionState = TvConnectionState.connecting;
     notifyListeners();
 
@@ -247,6 +274,10 @@ class TvRemoteManager extends ChangeNotifier {
       addLocalLog('WARN', 'MANAGER', 'Cannot send keypress $key: Remote is not fully connected.');
       return;
     }
+    if (_bypassAuthentication) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock sending key command: ${key.name}');
+      return;
+    }
     final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('DEBUG', 'MANAGER', 'Sending key command: ${key.name}');
     final success = await activeAdapter.sendKey(key);
@@ -255,9 +286,118 @@ class TvRemoteManager extends ChangeNotifier {
     }
   }
 
+  Future<List<Map<String, String>>> getInstalledApps() async {
+    if (_connectionState != TvConnectionState.connected) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot query apps: TV is not connected.');
+      return [];
+    }
+    if (_bypassAuthentication) {
+      addLocalLog('DEBUG', 'MANAGER', '[BYPASS] Mock querying installed apps...');
+      final brand = _currentDevice?.brand ?? 'Android TV';
+      if (brand == 'Samsung Tizen' || brand == 'Samsung TV') {
+        return [
+          {'id': 'YouTube', 'name': 'YouTube', 'iconUrl': ''},
+          {'id': 'Netflix', 'name': 'Netflix', 'iconUrl': ''},
+          {'id': 'Prime Video', 'name': 'Prime Video', 'iconUrl': ''},
+        ];
+      }
+      if (brand == 'Amazon Fire TV') {
+        return [
+          {'id': 'YouTube', 'name': 'YouTube', 'iconUrl': ''},
+          {'id': 'Netflix', 'name': 'Netflix', 'iconUrl': ''},
+          {'id': 'AmazonVideo', 'name': 'Prime Video', 'iconUrl': ''},
+          {'id': 'Spotify', 'name': 'Spotify', 'iconUrl': ''},
+        ];
+      }
+      return [
+        {'id': 'com.google.android.youtube.tv', 'name': 'YouTube', 'iconUrl': ''},
+        {'id': 'com.netflix.ninja', 'name': 'Netflix', 'iconUrl': ''},
+        {'id': 'com.amazon.amazonvideo.livingroom', 'name': 'Prime Video', 'iconUrl': ''},
+        {'id': 'com.disney.disneyplus', 'name': 'Disney+', 'iconUrl': ''},
+        {'id': 'com.plexapp.android', 'name': 'Plex', 'iconUrl': ''},
+        {'id': 'com.spotify.tv.android', 'name': 'Spotify', 'iconUrl': ''},
+      ];
+    }
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
+    addLocalLog('DEBUG', 'MANAGER', 'Querying installed apps...');
+    return await activeAdapter.getInstalledApps();
+  }
+
+  Future<bool> launchApp(String appId) async {
+    if (_connectionState != TvConnectionState.connected) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot launch app: TV is not connected.');
+      return false;
+    }
+    if (_bypassAuthentication) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock launching app: $appId');
+      return true;
+    }
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
+    addLocalLog('DEBUG', 'MANAGER', 'Launching app $appId...');
+    return await activeAdapter.launchApp(appId);
+  }
+
+  Future<bool> sendText(String text) async {
+    if (_connectionState != TvConnectionState.connected) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot send text: TV is not connected.');
+      return false;
+    }
+    if (_bypassAuthentication) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock sending text: $text');
+      return true;
+    }
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
+    addLocalLog('DEBUG', 'MANAGER', 'Sending text: $text...');
+    return await activeAdapter.sendText(text);
+  }
+
+  Future<bool> castMedia({
+    required String url,
+    required String type,
+    String? name,
+    String? format,
+  }) async {
+    if (_connectionState != TvConnectionState.connected) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot cast media: TV is not connected.');
+      return false;
+    }
+    if (_bypassAuthentication) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock casting media: $url (Type: $type)');
+      return true;
+    }
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
+    addLocalLog('DEBUG', 'MANAGER', 'Casting media URL: $url (Type: $type)...');
+    return await activeAdapter.castMedia(url: url, type: type, name: name, format: format);
+  }
+
+  Future<void> stopCasting() async {
+    if (_connectionState != TvConnectionState.connected) return;
+    if (_bypassAuthentication) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock stopping media cast');
+      return;
+    }
+    final activeAdapter = _getAdapterForDevice(_currentDevice);
+    addLocalLog('DEBUG', 'MANAGER', 'Stopping media cast...');
+    await activeAdapter.stopCasting();
+  }
+
   Future<void> disconnect() async {
+    if (_bypassAuthentication) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Disconnecting mock session...');
+      _currentDevice = null;
+      _connectionState = TvConnectionState.disconnected;
+      _pairingPin = null;
+      _pairingStatusMessage = null;
+      notifyListeners();
+      return;
+    }
     final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('INFO', 'MANAGER', 'Disconnecting session...');
+    try {
+      await activeAdapter.stopCasting();
+    } catch (e) {
+      addLocalLog('WARN', 'MANAGER', 'Error stopping casting on disconnect: $e');
+    }
     await activeAdapter.disconnect();
     _currentDevice = null;
     _connectionState = TvConnectionState.disconnected;
