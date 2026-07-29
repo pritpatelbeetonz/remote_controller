@@ -3,6 +3,7 @@ import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import 'discovery_screen.dart';
+import 'pairing_screen.dart';
 import 'remote_screen.dart';
 
 class BrandSelectionScreen extends StatelessWidget {
@@ -81,36 +82,73 @@ class BrandSelectionScreen extends StatelessWidget {
                     animation: manager,
                     builder: (context, _) {
                       return Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B).withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: Colors.white10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.bug_report_outlined, color: AppTheme.primary, size: 20),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Debug Mode (Bypass Auth)',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B).withOpacity(0.4),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(color: Colors.white10),
                               ),
-                              const SizedBox(width: 12),
-                              Switch(
-                                value: manager.bypassAuthentication,
-                                activeColor: AppTheme.primary,
-                                onChanged: (value) {
-                                  manager.bypassAuthentication = value;
-                                },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.bug_report_outlined, color: AppTheme.primary, size: 20),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Debug Mode (Bypass Auth)',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Switch(
+                                    value: manager.bypassAuthentication,
+                                    activeColor: AppTheme.primary,
+                                    onChanged: (value) {
+                                      manager.bypassAuthentication = value;
+                                    },
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B).withOpacity(0.4),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(color: Colors.white10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.flash_on_outlined, color: Colors.amberAccent, size: 20),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Bypass to Pairing Screen',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Switch(
+                                    value: manager.bypassToPairing,
+                                    activeColor: Colors.amberAccent,
+                                    onChanged: (value) {
+                                      manager.bypassToPairing = value;
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -191,6 +229,24 @@ class BrandSelectionScreen extends StatelessWidget {
   }
 
   void _onBrandSelected(BuildContext context, String brand) {
+    if (manager.bypassToPairing) {
+      final mockDevice = TvDevice(
+        id: 'mock-${brand.toLowerCase().replaceAll(' ', '-')}',
+        name: 'Mock $brand',
+        ipAddress: '127.0.0.1',
+        port: 8080,
+        brand: brand,
+      );
+      manager.connectToDevice(mockDevice);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PairingScreen(manager: manager),
+        ),
+      );
+      return;
+    }
+
     if (manager.bypassAuthentication) {
       final mockDevice = TvDevice(
         id: 'mock-${brand.toLowerCase().replaceAll(' ', '-')}',

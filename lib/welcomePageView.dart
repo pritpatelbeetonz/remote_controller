@@ -140,7 +140,7 @@ class WelPageviewState extends State<WelPageview> {
                     color: Colors.white,
                     fontSize: 32.sp,
                     fontFamily: 'SF Pro Display',
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     height: 1.15,
                   ),
                 ),

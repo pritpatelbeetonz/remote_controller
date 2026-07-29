@@ -74,6 +74,13 @@ class TvRemoteManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _bypassToPairing = false;
+  bool get bypassToPairing => _bypassToPairing;
+  set bypassToPairing(bool value) {
+    _bypassToPairing = value;
+    notifyListeners();
+  }
+
   final List<StreamSubscription> _subscriptions = [];
 
   TvRemoteManager() {

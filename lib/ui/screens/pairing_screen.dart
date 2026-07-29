@@ -260,7 +260,7 @@ class _PairingScreenState extends State<PairingScreen> {
             ),
 
             // Log Console Overlay
-            LogConsoleDrawer(manager: manager),
+           // LogConsoleDrawer(manager: manager),
           ],
         ),
       ),
