@@ -186,22 +186,14 @@ class WelPageviewState extends State<WelPageview> {
                 GestureDetector(
                   onTap: () {
                     if (currentIndex == dataLength - 1) {
+                      AdsVariable.showRateUsDialogInIntro ?
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => PremiumCreditView(
-                            onboarding: true,
-                            onDone: () {
-                              Get.offAll(
-                                () => BrandSelectionScreen(
-                                  manager: MyApp.globalManager,
-                                ),
-                              );
-                            },
-                          ),
+                          builder: (_) => Ratingscreen(),
                         ),
                         (route) => false,
-                      );
+                      ) : Navigator.push(context, MaterialPageRoute(builder: (context)=>PremiumCreditView(onboarding: true, onDone: (){})));
                     } else {
                       pageController.nextPage(
                         duration: const Duration(milliseconds: 300),
