@@ -61,9 +61,13 @@ flutter:
     - assets/splash/
     - assets/survay & rate/
     - assets/sf-pro-display/
+    - assets/Geist-VariableFont_wght.ttf
     - assets/process.json
 
   fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/Geist-VariableFont_wght.ttf
     - family: SF Pro Display
       fonts:
         - asset: assets/sf-pro-display/SFPRODISPLAYREGULAR.OTF

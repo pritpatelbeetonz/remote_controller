@@ -77,73 +77,68 @@ class SurveyFormState extends State<SurveyForm> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(height: 10.h,),
-                /// Title
+                 /// Title
                 SizedBox(
                   width: MediaQuery.of(context).size.width,
                   child: Row(
                     children: [
-                      //SizedBox(height: 10.h,),
                       Text(
-                        "Which feature excites you most ?",
+                        "What would you like to \ntrack?",
                         style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Inter',
+                          fontSize: 22.sp,
+                          fontWeight: FontWeight.w800,
+                          fontFamily: 'Geist',
                           color: Colors.white,
+                          height: 1.2,
                         ),
                       ),
-                        Spacer(),
-                        Visibility(
-                          visible:selectedIndex != -1,
-                          replacement: SizedBox(height: 36.h,),
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      WelPageview(),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              width: 68.w,
-                              height: 36.h,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF6F5BFF),
-                                    Color(0xFF8A7DFF),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(8.r),
+                      const Spacer(),
+                      Visibility(
+                        visible: selectedIndex != -1,
+                        replacement: SizedBox(height: 36.h),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => WelPageview(),
                               ),
-                              child: Text(
-                                "Done",
-                                style: TextStyle(
-                                  fontSize: 14.sp,
-                                  fontWeight: FontWeight.w500,
-                                  fontFamily: 'Inter',
-                                  color: Colors.white,
-                                ),
+                            );
+                          },
+                          child: Container(
+                            width: 90.w,
+                            height: 36.h,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              image: const DecorationImage(
+                                image: AssetImage("assets/survay & rate/done.png"),
+                                fit: BoxFit.fill,
+                              ),
+                              borderRadius: BorderRadius.circular(80.r),
+                            ),
+                            child: Text(
+                              "Done",
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: 'Geist',
+                                color: Colors.white,
                               ),
                             ),
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),
 
-                SizedBox(height: 28.h),
+                SizedBox(height: 10.h),
                 Flexible(
                   child: Column(
                     children: [
                       /// OPTIONS
                       SurveyOption(
-                        title: "Collage Layouts",
+                        title: "📺 Smart TV Control",
                         index: 0,
                         selectedIndex: selectedIndex,
                         onTap: () {
@@ -152,11 +147,11 @@ class SurveyFormState extends State<SurveyForm> {
                           });
                         },
                         image: "assets/Surway/collage_layouts.png",
-                        subtitle: "Creative photo grids",
+                        subtitle: "Control your TV with an easy-to-use remote.",
                       ),
                      SizedBox(height: 10.h),
                       SurveyOption(
-                        title: "Premium Templates",
+                        title: "⚡ Quick TV Connection",
                         index: 1,
                         selectedIndex: selectedIndex,
                         onTap: () {
@@ -165,11 +160,11 @@ class SurveyFormState extends State<SurveyForm> {
                           });
                         },
                         image: "assets/Surway/premium_templets.png",
-                        subtitle: "Design in one tap",
+                        subtitle: "Connect to compatible TVs in just seconds.",
                       ),
                       SizedBox(height: 10.h),
                       SurveyOption(
-                        title: "Photo Editor",
+                        title: "📱 Screen Mirroring",
                         index: 2,
                         selectedIndex: selectedIndex,
                         onTap: () {
@@ -178,11 +173,11 @@ class SurveyFormState extends State<SurveyForm> {
                           });
                         },
                         image: "assets/Surway/photo_editor.png",
-                        subtitle: "Edit with ease",
+                        subtitle: "Cast your phone screen to the big display.",
                       ),
                      SizedBox(height: 10.h),
                       SurveyOption(
-                        title: "Custom Backgrounds",
+                        title: "🎬 Streaming App Access",
                         index: 3,
                         selectedIndex: selectedIndex,
                         onTap: () {
@@ -191,7 +186,7 @@ class SurveyFormState extends State<SurveyForm> {
                           });
                         },
                         image: "assets/Surway/creative_background.png",
-                        subtitle: "Personalize every design",
+                        subtitle: "Launch your favorite entertainment apps.",
                       ),
                     ],
                   ),
@@ -230,27 +225,21 @@ class SurveyOption extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        //height: 85.h,
         width: MediaQuery.of(context).size.width,
         decoration: BoxDecoration(
-          color: isSelected ? Color(0xFF111111):Color(0xFF111111),
-         // border: isSelected ? Border.all(color: Color(0xFFffc31f)):Border.all(color: Colors.transparent),
+          image: DecorationImage(
+            image: AssetImage(
+              isSelected
+                  ? "assets/survay & rate/selected.png"
+                  : "assets/survay & rate/deseletced.png",
+            ),
+            fit: BoxFit.fill,
+          ),
           borderRadius: BorderRadius.circular(20.r),
         ),
-        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 16.h),
-
+        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 20.h),
         child: Row(
           children: [
-            ///image
-            Container(
-              padding: EdgeInsets.all(12.w),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(9999.r),
-                  color: Color(0xFF7B61FF).withValues(alpha: 0.1)
-                ),
-                child: Image.asset(image,width: 24.w,height: 24.w,)),
-
-            SizedBox(width: 14.w),
             /// TEXT
             Expanded(
               child: Column(
@@ -260,36 +249,34 @@ class SurveyOption extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 16.sp,
+                      fontSize: 20.sp,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'Inter',
-                      color: isSelected ? Colors.white : Colors.white,
+                      fontFamily: 'Geist',
+                      color: Colors.white,
                     ),
                   ),
-                  SizedBox(height: 4.h,),
+                  SizedBox(height: 6.h),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 14.sp,
-                      fontWeight: FontWeight.w500,
-                      fontFamily: 'Inter',
-                      color: isSelected ? Colors.white.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.3),
+                      fontSize: 15.sp,
+                      fontWeight: FontWeight.w400,
+                      fontFamily: 'Geist',
+                      color:Colors.white.withValues(alpha: 0.7),
                     ),
                   )
                 ],
               ),
             ),
-            /// RADIO
-            Padding(
-              padding: EdgeInsetsGeometry.only(right: 10.w),
-              child: Image.asset(
-                isSelected
-                    ? "assets/Surway/checkmark.png"
-                    : "assets/Surway/notSelected.png",
-                height: 24.w,
-                width: 24.w,
-              ),
-            ),
+            // if (isSelected)
+            //   Padding(
+            //     padding: EdgeInsets.only(left: 10.w),
+            //     child: const Icon(
+            //       Icons.check_rounded,
+            //       color: Colors.white,
+            //       size: 26,
+            //     ),
+            //   ),
           ],
         ),
       ),
