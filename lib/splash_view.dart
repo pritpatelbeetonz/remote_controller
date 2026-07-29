@@ -166,22 +166,30 @@ class SplashScreenState extends State<SplashScreen> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 10.h,
+                bottom: 40.h,
                 child: Column(
                   children: [
                     Text('Universal Remote', style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 18.sp,
+                      color: Colors.white,
                       fontFamily: 'SF Pro Display',
                     )),
-                    SizedBox(height: 23.h),
+                    SizedBox(height: 16.h),
                     Center(
-                      child: Lottie.asset(
-                        "assets/Splash Screen/vtV06TU06B.json",
-                        width: 300.w, // adjust as needed
-                        height: 15.h, // adjust as needed
-                        fit: BoxFit.contain,
-                        repeat: true,
+                      child: Container(
+                        width: 260.w,
+                        height: 6.h,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(100.r),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(100.r),
+                          child: LinearProgressIndicator(
+                            backgroundColor: Colors.white.withValues(alpha: 0.15),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
                       ),
                     ),
                   ],
