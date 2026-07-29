@@ -16,7 +16,7 @@ void main() {
       ),
     );
     
-    // Verify that the header UNIVERSAL TV REMOTE is present on the screen
-    expect(find.text('UNIVERSAL TV REMOTE'), findsOneWidget);
+    // Verify that the debug switch is present on the screen
+    expect(find.text('Debug Mode (Bypass Auth)'), findsOneWidget);
   });
 }
