@@ -81,18 +81,18 @@ class AdsSplashUtils {
 
         if (Platform.isAndroid) {
           log(
-            "Map is ${remoteConfig.getValue("framzy_vi_collageMaker").asString()}",
+            "Map is ${remoteConfig.getValue("Remote_cont_v1").asString()}",
           );
           mapValues1 = jsonDecode(
-            remoteConfig.getValue("framzy_vi_collageMaker").asString(),
+            remoteConfig.getValue("Remote_cont_v1").asString(),
           );
           print(mapValues1);
         } else {
           log(
-            "Map is ${remoteConfig.getValue("framzy_vi_collageMaker").asString()}",
+            "Map is ${remoteConfig.getValue("Remote_cont_v1").asString()}",
           );
           mapValues1 = jsonDecode(
-            remoteConfig.getValue("framzy_vi_collageMaker").asString(),
+            remoteConfig.getValue("Remote_cont_v1").asString(),
           );
           print(mapValues1);
         }

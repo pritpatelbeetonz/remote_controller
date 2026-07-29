@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../for_ads/ads/ads_splash_utils.dart';
 import '../for_ads/ads/ads_variable.dart';
 import '../for_ads/utils/firebase_analysis.dart';
+import 'package:remote_controller/main.dart';
+import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
 import 'PremiumCreditView.dart';
 
 class Ratingscreen extends StatefulWidget {
@@ -46,14 +48,14 @@ class _RatingscreenState extends State<Ratingscreen> {
                           if (!hasNet) {
                             Navigator.pushAndRemoveUntil(
                               context,
-                              MaterialPageRoute(builder: (_) => MainView()),
+                              MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: MyApp.globalManager)),
                               (route) => false,
                             );
                           } else {
                             if (AdsVariable.isPurchase) {
                               Navigator.pushAndRemoveUntil(
                                 context,
-                                MaterialPageRoute(builder: (_) => MainView()),
+                                MaterialPageRoute(builder: (_) => BrandSelectionScreen(manager: MyApp.globalManager)),
                                 (route) => false,
                               );
                             } else {

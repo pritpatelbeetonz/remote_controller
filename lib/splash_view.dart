@@ -9,6 +9,9 @@ import 'package:get/get_navigation/src/extension_navigation.dart';
 import 'package:lottie/lottie.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:remote_controller/welcomePageView.dart';
+import 'package:remote_controller/main.dart';
+import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
+import 'package:get/get.dart';
 import '../../for_ads/ads/ads_splash_utils.dart';
 import '../../for_ads/ads/ads_variable.dart';
 import '../../for_ads/utils/app_constants.dart';
@@ -34,6 +37,7 @@ class SplashScreenState extends State<SplashScreen> {
       await AdsSplashUtils().getOnlineIds(
         navigateScreen: () async {
           log('navigate screen');
+
           /// todo :- when to test purchase
           fetchData();
           navigatingToNextActivity();
@@ -45,13 +49,23 @@ class SplashScreenState extends State<SplashScreen> {
   void navigatingToNextActivity() async {
     bool isFirstLaunch = SharedPrefService.getIsFirstTime();
     if (isFirstLaunch) {
-      AdsVariable.showSurveyScreen ?
-      Get.off(SurveyForm()) : Get.off(WelPageview()); //SurveyForm()
+      AdsVariable.showSurveyScreen
+          ? Get.off(SurveyForm())
+          : Get.off(WelPageview()); //SurveyForm()
     } else {
       if (AdsVariable.isPurchase) {
-        Get.offAllNamed(AppRoutes.home);
+        Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
       } else {
-        Get.offAllNamed(PremiumCreditView(onboarding: true, onDone: (){}) as String);
+        Get.offAll(
+          () => PremiumCreditView(
+            onboarding: true,
+            onDone: () {
+              Get.offAll(
+                () => BrandSelectionScreen(manager: MyApp.globalManager),
+              );
+            },
+          ),
+        );
       }
     }
   }
@@ -106,7 +120,7 @@ class SplashScreenState extends State<SplashScreen> {
           child: Stack(
             children: [
               Image.asset(
-                "assets/Splash Screen/image 70.png",
+                "assets/splash/bg.png",
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
@@ -116,36 +130,36 @@ class SplashScreenState extends State<SplashScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      "assets/Splash Screen/image 69.png",
-                      width: 81.w,
-                      height: 81.w,
+                      "assets/splash/icon.png",
+                      width: 185.w,
+                      height: 185.w,
                     ),
-                    SizedBox(height: 24.h,),
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Framz",
-                          style: TextStyle(
-                            fontSize: 38.54.sp,
-                            color: Colors.white,
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(height: 4.h),
-                        Text(
-                          "Where Memories Meet Design",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14.sp,
-                            fontWeight: FontWeight.w300,
-                            fontFamily: 'Inter',
-                          ),
-                        ),
-                        // SizedBox(height: 5.h),
-                      ],
-                    )
+                    // SizedBox(height: 24.h,),
+                    // Column(
+                    //   mainAxisAlignment: MainAxisAlignment.center,
+                    //   children: [
+                    //     Text(
+                    //       "Framz",
+                    //       style: TextStyle(
+                    //         fontSize: 38.54.sp,
+                    //         color: Colors.white,
+                    //         fontFamily: 'Inter',
+                    //         fontWeight: FontWeight.w700,
+                    //       ),
+                    //     ),
+                    //     SizedBox(height: 4.h),
+                    //     Text(
+                    //       "Where Memories Meet Design",
+                    //       style: TextStyle(
+                    //         color: Colors.white,
+                    //         fontSize: 14.sp,
+                    //         fontWeight: FontWeight.w300,
+                    //         fontFamily: 'Inter',
+                    //       ),
+                    //     ),
+                    //     // SizedBox(height: 5.h),
+                    //   ],
+                    // )
                   ],
                 ),
               ),
@@ -153,14 +167,24 @@ class SplashScreenState extends State<SplashScreen> {
                 left: 0,
                 right: 0,
                 bottom: 10.h,
-                child: Center(
-                  child: Lottie.asset(
-                    "assets/Splash Screen/vtV06TU06B.json",
-                    width: 300.w, // adjust as needed
-                    height:15.h, // adjust as needed
-                    fit: BoxFit.contain,
-                    repeat: true,
-                  ),
+                child: Column(
+                  children: [
+                    Text('Universal Remote', style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18.sp,
+                      fontFamily: 'SF Pro Display',
+                    )),
+                    SizedBox(height: 23.h),
+                    Center(
+                      child: Lottie.asset(
+                        "assets/Splash Screen/vtV06TU06B.json",
+                        width: 300.w, // adjust as needed
+                        height: 15.h, // adjust as needed
+                        fit: BoxFit.contain,
+                        repeat: true,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

@@ -11,16 +11,16 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
-import 'routes/app_routes.dart';
-import 'modules/main/views/main_view.dart';
+import 'package:remote_controller/main.dart';
+import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
 import 'for_ads/ads/ads_variable.dart';
 import 'for_ads/ads/app_open_ad.dart';
 import 'for_ads/ads/life_cycle.dart';
 import 'for_ads/utils/app_constants.dart';
 import 'for_ads/utils/firebase_analysis.dart';
 import 'privacy_policy_screen.dart';
+import 'for_ads/utils/shared_prefrence_service.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'core/services/storage/shared_prefs_service.dart';
 
 class PremiumCreditView extends StatefulWidget {
   final bool onboarding;
@@ -441,7 +441,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                     GestureDetector(
                       onTap: () {
                         if (widget.onboarding) {
-                          Get.offAllNamed(AppRoutes.home);
+                          Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
                         } else {
                           Navigator.pop(context);
                         }
@@ -590,7 +590,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
       );
 
       if (widget.onboarding) {
-        Get.offAllNamed(AppRoutes.home);
+        Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
         widget.onDone();
       } else {
         Navigator.of(context).pop();
@@ -985,8 +985,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           AdsVariable.resetAdIds();
                           AdsVariable.isPurchase = true;
 
-                          final prefs = Get.find<SharedPrefsService>();
-                          await prefs.setBool(
+                          await SharedPrefService.sharedPreferences.setBool(
                             'is_tester_premium',
                             true,
                           );
@@ -998,7 +997,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           );
 
                           if (widget.onboarding) {
-                            Get.offAllNamed(AppRoutes.home);
+                            Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
                             widget.onDone();
                           } else {
                             Navigator.of(context).pop();

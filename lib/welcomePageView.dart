@@ -3,6 +3,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:remote_controller/main.dart';
+import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:remote_controller/welcome1.dart';
 import 'package:remote_controller/welcome2.dart';
@@ -191,7 +193,7 @@ class WelPageviewState extends State<WelPageview> {
                           builder: (_) => PremiumCreditView(
                             onboarding: true,
                             onDone: () {
-                              Get.offAllNamed(AppRoutes.home);
+                              Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
                             },
                           ),
                         ),
