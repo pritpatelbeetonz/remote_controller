@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -103,11 +104,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     final ip = _ipController.text.trim();
     final portStr = _portController.text.trim();
     if (ip.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid IP address'),
-          backgroundColor: AppTheme.error,
-        ),
+      Fluttertoast.showToast(
+        msg: 'Please enter a valid IP address',
+        backgroundColor: AppTheme.error,
+        textColor: Colors.white,
       );
       return;
     }

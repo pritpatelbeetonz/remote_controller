@@ -377,6 +377,21 @@ class LgWebOsAdapter implements TvRemoteAdapter {
       case TvKey.playPause:
         await _sendRequest('ssap://input/generateKey', {'name': 'PLAY'});
         break;
+      case TvKey.rewind:
+        await _sendRequest('ssap://input/generateKey', {'name': 'REWIND'});
+        break;
+      case TvKey.fastForward:
+        await _sendRequest('ssap://input/generateKey', {'name': 'FASTFORWARD'});
+        break;
+      case TvKey.options:
+        await _sendRequest('ssap://input/generateKey', {'name': 'MENU'});
+        break;
+      case TvKey.info:
+        await _sendRequest('ssap://input/generateKey', {'name': 'INFO'});
+        break;
+      case TvKey.inputSource:
+        await _sendRequest('ssap://input/generateKey', {'name': 'INPUT'});
+        break;
     }
     return true;
   }
@@ -484,6 +499,19 @@ class LgWebOsAdapter implements TvRemoteAdapter {
       return false;
     }
 
+    if (type == 'w') {
+      try {
+        await _sendRequest('ssap://system.launcher/open', {
+          'target': url,
+        });
+        _addLog('INFO', 'Successfully opened browser URL on LG TV: $url');
+        return true;
+      } catch (e) {
+        _addLog('ERROR', 'Failed to open browser URL on LG TV: $e');
+        return false;
+      }
+    }
+
     String finalUrl = url;
     final isLocalFile = !url.startsWith('http://') && !url.startsWith('https://');
 
@@ -539,7 +567,7 @@ class LgWebOsAdapter implements TvRemoteAdapter {
 
     String mimeType = 'video/mp4';
     if (type == 'p') {
-      final ext = url.split('.').last.toLowerCase();
+      final ext = url.split('.').last.split('?').first.toLowerCase();
       mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
     } else if (type == 'm') {
       mimeType = 'audio/mpeg';

@@ -324,9 +324,12 @@ class AppleTvAdapter implements TvRemoteAdapter {
           bytes = await getRes.expand((b) => b).toList();
         }
 
+        final ext = url.split('.').last.split('?').first.toLowerCase();
+        final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+
         final putUri = Uri.parse('http://${_currentDevice!.ipAddress}:7000/photo');
         final request = await _httpClient!.putUrl(putUri);
-        request.headers.add('Content-Type', 'image/jpeg');
+        request.headers.add('Content-Type', contentType);
         request.headers.add('User-Agent', 'MediaControl/1.0');
         request.contentLength = bytes.length;
         request.add(bytes);

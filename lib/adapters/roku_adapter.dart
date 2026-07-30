@@ -212,6 +212,15 @@ class RokuAdapter implements TvRemoteAdapter {
         return 'Home';
       case TvKey.playPause:
         return 'Play';
+      case TvKey.rewind:
+        return 'Rev';
+      case TvKey.fastForward:
+        return 'Fwd';
+      case TvKey.options:
+      case TvKey.info:
+        return 'Info';
+      case TvKey.inputSource:
+        return 'InputTuner';
     }
   }
 
@@ -406,7 +415,9 @@ class RokuAdapter implements TvRemoteAdapter {
 
     final encodedUrl = Uri.encodeComponent(finalUrl);
     final mediaType = type;
-    final mediaFormat = format ?? (isLocalFile ? url.split('.').last.toLowerCase() : 'mp4');
+    final defaultFormat = type == 'p' ? 'jpg' : (type == 'm' ? 'mp3' : 'mp4');
+    final mediaFormat = format ??
+        (url.contains('.') ? url.split('.').last.split('?').first.toLowerCase() : defaultFormat);
     final displayName = name ?? (isLocalFile ? url.split('/').last : 'Web Media');
     final encodedName = Uri.encodeComponent(displayName);
 

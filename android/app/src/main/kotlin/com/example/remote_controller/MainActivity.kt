@@ -53,6 +53,23 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call: MethodCall, result ->
                 Log.i("xyz", "configureFlutterEngine: ")
                 when (call.method) {
+                    "launchCastSettings" -> {
+                        try {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_CAST_SETTINGS)
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            try {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                                result.success(true)
+                            } catch (ex: Exception) {
+                                result.error("ERROR", "Could not open settings: ${ex.message}", null)
+                            }
+                        }
+                    }
                     "setToast" -> {
 
                         try {

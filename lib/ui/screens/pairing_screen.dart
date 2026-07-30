@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
@@ -47,11 +48,10 @@ class _PairingScreenState extends State<PairingScreen> {
       // Pairing successful! Route to remote screen.
       Get.offAll(() => RemoteScreen(manager: widget.manager));
     } else if (widget.manager.connectionState == TvConnectionState.failed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pairing failed. Please check the code and try again.'),
-          backgroundColor: AppTheme.error,
-        ),
+      Fluttertoast.showToast(
+        msg: 'Pairing failed. Please check the code and try again.',
+        backgroundColor: AppTheme.error,
+        textColor: Colors.white,
       );
     }
   }
@@ -76,11 +76,10 @@ class _PairingScreenState extends State<PairingScreen> {
     if (pin.length == 6) {
       widget.manager.submitPin(pin);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter all 6 characters of the PIN code.'),
-          backgroundColor: AppTheme.error,
-        ),
+      Fluttertoast.showToast(
+        msg: 'Please enter all 6 characters of the PIN code.',
+        backgroundColor: AppTheme.error,
+        textColor: Colors.white,
       );
     }
   }

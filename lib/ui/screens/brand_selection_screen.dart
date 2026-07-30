@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
+import 'package:remote_controller/for_ads/ads/ads_variable.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -152,7 +153,11 @@ class BrandSelectionScreen extends StatelessWidget {
                       final b = brands[index];
                       return _buildBrandCard(
                         image: b['image']!,
-                        onTap: () => _onBrandSelected(context, b['brand']!),
+                        onTap: (){
+                          AdsVariable.onShowAds(context, onComplete: (){
+                            _onBrandSelected(context, b['brand']!);
+                          });
+                        }
                       );
                     },
                   );

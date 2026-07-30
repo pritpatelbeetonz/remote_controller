@@ -14,6 +14,11 @@ enum TvKey {
   back,
   home,
   playPause,
+  rewind,
+  fastForward,
+  options,
+  info,
+  inputSource,
 }
 
 /// Represents a generic TV device discovered on the network.

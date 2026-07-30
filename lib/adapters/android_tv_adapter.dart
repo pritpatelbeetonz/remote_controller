@@ -131,7 +131,7 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     switch (key) {
       case TvKey.power:
         // volume_mute / power button maps
-        command = 'play_pause'; // fallback mapping
+        command = 'power';
         break;
       case TvKey.volumeUp:
         command = 'volume_up';
@@ -140,7 +140,7 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         command = 'volume_down';
         break;
       case TvKey.mute:
-        command = 'play_pause'; // package uses play_pause as muting fallback, or we can handle
+        command = 'volume_mute';
         break;
       case TvKey.up:
         command = 'dpad_up';
@@ -165,6 +165,21 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         break;
       case TvKey.playPause:
         command = 'play_pause';
+        break;
+      case TvKey.rewind:
+        command = 'rewind';
+        break;
+      case TvKey.fastForward:
+        command = 'fast_forward';
+        break;
+      case TvKey.options:
+        command = 'menu';
+        break;
+      case TvKey.info:
+        command = 'info';
+        break;
+      case TvKey.inputSource:
+        command = 'source';
         break;
     }
     return await AndroidTVRemote.sendCommand(command);
