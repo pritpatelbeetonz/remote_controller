@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:get/get.dart';
 import 'package:remote_controller/for_ads/ads/ads_variable.dart';
+import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
@@ -31,13 +32,15 @@ class RemoteScreen extends StatefulWidget {
   State<RemoteScreen> createState() => _RemoteScreenState();
 }
 
-class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderStateMixin {
+class _RemoteScreenState extends State<RemoteScreen>
+    with SingleTickerProviderStateMixin {
   static const MethodChannel _nativeChannel = MethodChannel('nativeChannel');
   late final TabController _tabController;
   int _currentTabIndex = 0;
 
   final TextEditingController _castUrlController = TextEditingController(
-    text: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    text:
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
   );
   String _selectedCastType = 'v'; // 'v' = Video, 'p' = Photo, 'm' = Music
   bool _isCasting = false;
@@ -49,7 +52,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
   final TextEditingController _keyboardController = TextEditingController();
   bool _sendCharByChar = true;
 
-  bool _useTrackpad = true; // Default to swipe trackpad
+  bool _useTrackpad = false; // Default to swipe trackpad
   double _dragAccumulatorX = 0.0;
   double _dragAccumulatorY = 0.0;
   static const double _swipeThreshold = 40.0;
@@ -63,6 +66,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
 
   @override
   void initState() {
+    FirebaseAnalyticsService.logEvent(eventName: 'REMOTE_SCREEN');
     super.initState();
     _loadIptvSettings();
     _activeTabs = ['control'];
@@ -93,7 +97,8 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
   }
 
   void _onConnectionStateChange() {
-    if (widget.manager.connectionState != TvConnectionState.connected && mounted) {
+    if (widget.manager.connectionState != TvConnectionState.connected &&
+        mounted) {
       _showNotConnectedSnackBar();
     }
   }
@@ -118,7 +123,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
   }
 
   void _showNotConnectedSnackBar() {
-    _showToast('Not connected to TV. Redirecting to brand selection...', backgroundColor: AppTheme.error);
+    _showToast(
+      'Not connected to TV. Redirecting to brand selection...',
+      backgroundColor: AppTheme.error,
+    );
     Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
   }
 
@@ -144,9 +152,16 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
 
   // Launch App
   Future<void> _launchApp(String id, String name) async {
+    final eventAppName = name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9_]'), '_');
+    FirebaseAnalyticsService.logEvent(
+      eventName: 'APP_LAUNCHED_$eventAppName',
+    );
     final success = await widget.manager.launchApp(id);
     if (success) {
-      _showToast('Successfully launched $name', backgroundColor: AppTheme.success);
+      _showToast(
+        'Successfully launched $name',
+        backgroundColor: AppTheme.success,
+      );
     } else {
       _showToast('Failed to launch $name', backgroundColor: AppTheme.error);
     }
@@ -158,7 +173,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       _isCasting = true;
       _activeCastName = name ?? 'Web Stream';
     });
-    
+
     final success = await widget.manager.castMedia(
       url: url,
       type: type,
@@ -170,7 +185,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         _isCasting = false;
         _activeCastName = null;
       });
-      _showToast('Failed to start casting session', backgroundColor: AppTheme.error);
+      _showToast(
+        'Failed to start casting session',
+        backgroundColor: AppTheme.error,
+      );
     }
   }
 
@@ -206,7 +224,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         }
 
         if (!permissionGranted) {
-          _showToast('Storage permissions are required to access local media files.', backgroundColor: AppTheme.error);
+          _showToast(
+            'Storage permissions are required to access local media files.',
+            backgroundColor: AppTheme.error,
+          );
           return;
         }
       }
@@ -217,23 +238,39 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
 
       if (type == 'p') {
         typeLabel = 'Image';
-        widget.manager.addLocalLog('INFO', 'UI', 'Opening ImagePicker for image...');
-        final XFile? image = await ImagePicker().pickImage(source: ImageSource.gallery);
+        widget.manager.addLocalLog(
+          'INFO',
+          'UI',
+          'Opening ImagePicker for image...',
+        );
+        final XFile? image = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+        );
         if (image != null) {
           filePath = image.path;
           fileName = image.name;
         }
       } else if (type == 'v') {
         typeLabel = 'Video';
-        widget.manager.addLocalLog('INFO', 'UI', 'Opening ImagePicker for video...');
-        final XFile? video = await ImagePicker().pickVideo(source: ImageSource.gallery);
+        widget.manager.addLocalLog(
+          'INFO',
+          'UI',
+          'Opening ImagePicker for video...',
+        );
+        final XFile? video = await ImagePicker().pickVideo(
+          source: ImageSource.gallery,
+        );
         if (video != null) {
           filePath = video.path;
           fileName = video.name;
         }
       } else {
         typeLabel = 'Audio';
-        widget.manager.addLocalLog('INFO', 'UI', 'Opening FilePicker for audio...');
+        widget.manager.addLocalLog(
+          'INFO',
+          'UI',
+          'Opening FilePicker for audio...',
+        );
         final result = await FilePicker.pickFiles(type: FileType.audio);
         if (result != null && result.files.single.path != null) {
           filePath = result.files.single.path;
@@ -242,14 +279,25 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       }
 
       if (filePath != null && fileName != null) {
-        _showToast('Starting local server & casting $typeLabel: $fileName...', backgroundColor: AppTheme.info);
+        _showToast(
+          'Starting local server & casting $typeLabel: $fileName...',
+          backgroundColor: AppTheme.info,
+        );
 
         await _startCast(filePath, type, name: fileName);
       } else {
-        widget.manager.addLocalLog('INFO', 'UI', 'File picking cancelled by user.');
+        widget.manager.addLocalLog(
+          'INFO',
+          'UI',
+          'File picking cancelled by user.',
+        );
       }
     } catch (e) {
-      widget.manager.addLocalLog('ERROR', 'UI', 'Failed to pick or cast local file: $e');
+      widget.manager.addLocalLog(
+        'ERROR',
+        'UI',
+        'Failed to pick or cast local file: $e',
+      );
       _showToast('Casting failed: $e', backgroundColor: AppTheme.error);
     }
   }
@@ -267,14 +315,25 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
   }
 
   bool get _isRoku => widget.manager.currentDevice?.brand == 'Roku';
-  bool get _isSamsung => widget.manager.currentDevice?.brand == 'Samsung Tizen';
-  bool get _isAndroidTv => !_isRoku && !_isSamsung && !_isLg && !_isAppleTv && !_isAmazonFireTv;
-  bool get _isLg => widget.manager.currentDevice?.brand == 'LG webOS';
-  bool get _isAppleTv => widget.manager.currentDevice?.brand == 'Apple TV';
-  bool get _isAmazonFireTv => widget.manager.currentDevice?.brand == 'Amazon Fire TV';
 
-  bool get _supportsAppLauncher => _isRoku || _isSamsung || _isAndroidTv || _isAmazonFireTv;
-  bool get _supportsCasting => _isRoku || _isSamsung || _isAndroidTv || _isLg || _isAppleTv;
+  bool get _isSamsung => widget.manager.currentDevice?.brand == 'Samsung Tizen';
+
+  bool get _isAndroidTv =>
+      !_isRoku && !_isSamsung && !_isLg && !_isAppleTv && !_isAmazonFireTv;
+
+  bool get _isLg => widget.manager.currentDevice?.brand == 'LG webOS';
+
+  bool get _isAppleTv => widget.manager.currentDevice?.brand == 'Apple TV';
+
+  bool get _isAmazonFireTv =>
+      widget.manager.currentDevice?.brand == 'Amazon Fire TV';
+
+  bool get _supportsAppLauncher =>
+      _isRoku || _isSamsung || _isAndroidTv || _isAmazonFireTv;
+
+  bool get _supportsCasting =>
+      _isRoku || _isSamsung || _isAndroidTv || _isLg || _isAppleTv;
+
   bool get _supportsKeyboard => _isRoku || _isSamsung || _isAndroidTv || _isLg;
 
   @override
@@ -296,7 +355,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             children: [
               // Top App Bar/Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -323,10 +385,15 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                     ),
                     GestureDetector(
                       onTap: () {
-                        Get.offAll(() => BrandSelectionScreen(manager: manager));
+                        Get.offAll(
+                          () => BrandSelectionScreen(manager: manager),
+                        );
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF1E1E22),
                           borderRadius: BorderRadius.circular(20),
@@ -343,7 +410,8 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              manager.connectionState == TvConnectionState.connected
+                              manager.connectionState ==
+                                      TvConnectionState.connected
                                   ? 'Connected'
                                   : 'Connect',
                               style: const TextStyle(
@@ -360,14 +428,15 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                   ],
                 ),
               ),
-  
+
               // Tab Views
               Expanded(
                 child: Stack(
                   children: [
                     TabBarView(
                       controller: _tabController,
-                      physics: const NeverScrollableScrollPhysics(), // tab changes controlled by nav bar
+                      physics: const NeverScrollableScrollPhysics(),
+                      // tab changes controlled by nav bar
                       children: _activeTabs.map((tab) {
                         if (tab == 'control') {
                           return _buildRemotePanel();
@@ -403,7 +472,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           filter: ui.ImageFilter.blur(sigmaX: 50.0, sigmaY: 50.0),
           child: Container(
             decoration: BoxDecoration(
-              border: const Border(top: BorderSide(color: Colors.transparent, width: 0)),
+              border: const Border(
+                top: BorderSide(color: Colors.transparent, width: 0),
+              ),
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -416,9 +487,12 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             child: BottomNavigationBar(
               currentIndex: _currentTabIndex,
               onTap: (index) {
-                AdsVariable.onShowAds(context, onComplete: (){
-                  _tabController.animateTo(index);
-                });
+                AdsVariable.onShowAds(
+                  context,
+                  onComplete: () {
+                    _tabController.animateTo(index);
+                  },
+                );
               },
               backgroundColor: Colors.transparent,
               elevation: 0,
@@ -432,7 +506,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 if (tab == 'control') {
                   return BottomNavigationBarItem(
                     icon: Image.asset(
-                      isSelected ? 'assets/tab/remoite s.png' : 'assets/tab/Remote.png',
+                      isSelected
+                          ? 'assets/tab/remoite s.png'
+                          : 'assets/tab/Remote.png',
                       width: 24,
                       height: 24,
                     ),
@@ -441,7 +517,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 } else if (tab == 'apps') {
                   return BottomNavigationBarItem(
                     icon: Image.asset(
-                      isSelected ? 'assets/tab/Apps s.png' : 'assets/tab/apps.png',
+                      isSelected
+                          ? 'assets/tab/Apps s.png'
+                          : 'assets/tab/apps.png',
                       width: 24,
                       height: 24,
                     ),
@@ -450,7 +528,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 } else if (tab == 'cast') {
                   return BottomNavigationBarItem(
                     icon: Image.asset(
-                      isSelected ? 'assets/tab/Cast s.png' : 'assets/tab/Cast.png',
+                      isSelected
+                          ? 'assets/tab/Cast s.png'
+                          : 'assets/tab/Cast.png',
                       width: 24,
                       height: 24,
                     ),
@@ -459,7 +539,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 } else {
                   return BottomNavigationBarItem(
                     icon: Image.asset(
-                      isSelected ? 'assets/tab/Settings s.png' : 'assets/tab/Settings.png',
+                      isSelected
+                          ? 'assets/tab/Settings s.png'
+                          : 'assets/tab/Settings.png',
                       width: 24,
                       height: 24,
                     ),
@@ -517,7 +599,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                         width: 56,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: !_useTrackpad ? const Color(0xFF2D2D33) : Colors.transparent,
+                          color: !_useTrackpad
+                              ? const Color(0xFF2D2D33)
+                              : Colors.transparent,
                           shape: BoxShape.circle,
                         ),
                         child: Center(
@@ -525,24 +609,46 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                             'assets/home/move.png',
                             width: 24,
                             height: 24,
-                            color: !_useTrackpad ? Colors.white : Colors.white54,
+                            color: !_useTrackpad
+                                ? Colors.white
+                                : Colors.white54,
                           ),
                         ),
                       ),
                     ),
                     // Touch Pad Button (Trackpad)
+                    // Touch Pad Button (Trackpad) - with premium gating
                     GestureDetector(
                       onTap: () {
-                        setState(() {
-                          _useTrackpad = true;
-                        });
-                        HapticFeedback.lightImpact();
+                        if (AdsVariable.isPurchase) {
+                          setState(() {
+                            _useTrackpad = true;
+                          });
+                          HapticFeedback.lightImpact();
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PremiumCreditView(
+                                onboarding: false,
+                                onDone: () {
+                                  setState(() {
+                                    _useTrackpad = true;
+                                  });
+                                  HapticFeedback.lightImpact();
+                                },
+                              ),
+                            ),
+                          );
+                        }
                       },
                       child: Container(
                         width: 56,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: _useTrackpad ? const Color(0xFF2D2D33) : Colors.transparent,
+                          color: _useTrackpad
+                              ? const Color(0xFF2D2D33)
+                              : Colors.transparent,
                           shape: BoxShape.circle,
                         ),
                         child: Center(
@@ -580,69 +686,247 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 children: [
                   _buildGridButton(
                     assetPath: 'assets/home/arrow.png',
-                    onPressed: () => _sendAction(TvKey.back),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.back);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.back);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButtonExpanded(
                     assetPath: 'assets/home/home.png',
-                    onPressed: () => _sendAction(TvKey.home),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.home);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.home);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   if (_supportsKeyboard) ...[
                     const SizedBox(width: 12),
                     _buildGridButton(
                       assetPath: 'assets/home/keyboard.png',
-                      onPressed: _showKeyboardModal,
+                      onPressed: () {
+                        if (AdsVariable.isPurchase) {
+                          _showKeyboardModal();
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PremiumCreditView(
+                                onboarding: false,
+                                onDone: () {
+                                  _showKeyboardModal();
+                                },
+                              ),
+                            ),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ],
               ),
               const SizedBox(height: 12),
               // Row 2: Reverse, Play/Pause, Fast Forward, Options/Star
+              // Row 2: Reverse, Play/Pause, Fast Forward, Options/Star
               Row(
                 children: [
                   _buildGridButton(
                     assetPath: 'assets/home/reverse.png',
-                    onPressed: () => _sendAction(TvKey.rewind),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.rewind);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.rewind);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
                     assetPath: 'assets/home/play.png',
-                    onPressed: () => _sendAction(TvKey.playPause),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.playPause);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.playPause);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
                     assetPath: 'assets/home/fast.png',
-                    onPressed: () => _sendAction(TvKey.fastForward),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.fastForward);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.fastForward);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
                     assetPath: 'assets/home/star.png',
-                    onPressed: () => _sendAction(TvKey.options),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.options);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.options);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               // Row 3: Mute, Volume Down, Volume Up, Reload
+              // Row 3: Mute, Volume Down, Volume Up, Reload
               Row(
                 children: [
                   _buildGridButton(
                     assetPath: 'assets/home/no sound.png',
-                    onPressed: () => _sendAction(TvKey.mute),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.mute);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.mute);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
                     assetPath: 'assets/home/sound.png',
-                    onPressed: () => _sendAction(TvKey.volumeDown),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.volumeDown);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.volumeDown);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
                     assetPath: 'assets/home/volume up.png',
-                    onPressed: () => _sendAction(TvKey.volumeUp),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.volumeUp);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.volumeUp);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
                     assetPath: 'assets/home/restart.png',
-                    onPressed: () => _sendAction(TvKey.info),
+                    onPressed: () {
+                      if (AdsVariable.isPurchase) {
+                        _sendAction(TvKey.info);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PremiumCreditView(
+                              onboarding: false,
+                              onDone: () {
+                                _sendAction(TvKey.info);
+                              },
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
@@ -662,11 +946,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       flex: 1,
       child: GestureDetector(
         onTap: onPressed,
-        child: Image.asset(
-          assetPath,
-          height: 60,
-          fit: BoxFit.contain,
-        ),
+        child: Image.asset(assetPath, height: 60, fit: BoxFit.contain),
       ),
     );
   }
@@ -679,11 +959,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       flex: 2,
       child: GestureDetector(
         onTap: onPressed,
-        child: Image.asset(
-          assetPath,
-          height: 60,
-          fit: BoxFit.contain,
-        ),
+        child: Image.asset(assetPath, height: 60, fit: BoxFit.contain),
       ),
     );
   }
@@ -706,7 +982,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     } else if (name.contains('netflix')) {
       cardColor = const Color(0xFF0F0F0F);
       resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/732/732228.png';
-    } else if (name.contains('prime video') || id.contains('amazonvideo') || name.contains('amazon video')) {
+    } else if (name.contains('prime video') ||
+        id.contains('amazonvideo') ||
+        name.contains('amazon video')) {
       cardColor = const Color(0xFF0F172A);
       resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977544.png';
     } else if (name.contains('disney')) {
@@ -720,7 +998,8 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977618.png';
     } else if (name.contains('kodi')) {
       cardColor = const Color(0xFF111E2E);
-      resolvedIcon = 'https://cdn.icon-icons.com/icons2/3053/PNG/512/kodi_macos_bigsur_icon_189912.png';
+      resolvedIcon =
+          'https://cdn.icon-icons.com/icons2/3053/PNG/512/kodi_macos_bigsur_icon_189912.png';
     } else if (name.contains('hulu')) {
       cardColor = const Color(0xFF0B1A1E);
       resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977602.png';
@@ -750,13 +1029,11 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977598.png';
     }
 
-    return {
-      'cardColor': cardColor,
-      'iconUrl': resolvedIcon,
-    };
+    return {'cardColor': cardColor, 'iconUrl': resolvedIcon};
   }
 
   // Tab 2: App Launcher Grid
+// Tab 2: App Launcher Grid
   Widget _buildAppLauncher() {
     if (!_isRoku && !_isSamsung && !_isAndroidTv && !_isAmazonFireTv) {
       return _buildBrandNotSupportedOverlay('Application Launcher');
@@ -772,58 +1049,58 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
 
     if (_installedApps.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.03),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.5),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.03),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.5),
+                  ),
+                  child: const Icon(
+                    Icons.apps_outage_rounded,
+                    size: 40,
+                    color: Colors.white30,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.apps_outage_rounded,
-                  size: 40,
-                  color: Colors.white30,
+                const SizedBox(height: 24),
+                const Text(
+                  'No Apps Found',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'No Apps Found',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                const SizedBox(height: 10),
+                const Text(
+                  'Please connect to a supported Smart TV to retrieve and launch installed apps.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white54,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Please connect to a supported Smart TV to retrieve and launch installed apps.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white54,
-                  height: 1.5,
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _loadApps,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Reload Apps', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF794DEB),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _loadApps,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('Reload Apps', style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF794DEB),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
       );
     }
 
@@ -846,7 +1123,16 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           final String resolvedIcon = appTheme['iconUrl'];
 
           return GestureDetector(
-            onTap: () => _launchApp(app['id']!, app['name']!),
+            onTap: () {
+              if(AdsVariable.isPurchase){
+                _launchApp(app['id']!, app['name']!);
+              }
+              else{
+                Navigator.push(context, MaterialPageRoute(builder: (context) => PremiumCreditView(onboarding: false, onDone: (){
+                  _launchApp(app['id']!, app['name']!);
+                })));
+              }
+            },
             child: Card(
               color: appTheme['cardColor'],
               margin: EdgeInsets.zero,
@@ -893,8 +1179,8 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       ),
     );
   }
-
   // Tab 3: Casting Hub
+// Tab 3: Casting Hub
   Widget _buildCastingHub() {
     if (!_isRoku && !_isSamsung && !_isAndroidTv && !_isLg && !_isAppleTv) {
       return _buildBrandNotSupportedOverlay('Screen & Media Casting');
@@ -956,29 +1242,74 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
               _buildCastGridItem(
                 iconPath: 'assets/casting/photos.png',
                 label: 'Photo',
-                onTap: () => _pickAndCastFile('p'),
+                onTap: () {
+                  if(AdsVariable.isPurchase){
+                    _pickAndCastFile('p');
+                  }
+                  else{
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => PremiumCreditView(onboarding: false, onDone: (){
+                      _pickAndCastFile('p');
+                    })));
+                  }
+                },
               ),
               _buildCastGridItem(
                 iconPath: 'assets/casting/video.png',
                 label: 'Video',
-                onTap: () => _pickAndCastFile('v'),
+                onTap: () {
+                  if(AdsVariable.isPurchase){
+                    _pickAndCastFile('v');
+                  }
+                  else{
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => PremiumCreditView(onboarding: false, onDone: (){
+                      _pickAndCastFile('v');
+                    })));
+                  }
+                },
               ),
               _buildCastGridItem(
                 iconPath: 'assets/casting/iptv.png',
                 label: 'IPTV',
-                onTap: _showIptvModal,
+                onTap: () {
+                  if(AdsVariable.isPurchase){
+                    _showIptvModal();
+                  }
+                  else{
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => PremiumCreditView(onboarding: false, onDone: (){
+                      _showIptvModal();
+                    })));
+                  }
+                },
               ),
               if (_isSamsung || _isLg)
                 _buildCastGridItem(
                   iconPath: 'assets/casting/web browser.png',
                   label: 'Web Browser',
-                  onTap: _showWebBrowserModal,
+                  onTap: () {
+                    if(AdsVariable.isPurchase){
+                      _showWebBrowserModal();
+                    }
+                    else{
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => PremiumCreditView(onboarding: false, onDone: (){
+                        _showWebBrowserModal();
+                      })));
+                    }
+                  },
                 ),
               if (!_isAppleTv)
                 _buildCastGridItem(
                   iconPath: 'assets/casting/screen mirroring.png',
                   label: 'Screen Mirroring',
-                  onTap: _showMirroringModal,
+                  onTap: () {
+                    if(AdsVariable.isPurchase){
+                      _showMirroringModal();
+                    }
+                    else{
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => PremiumCreditView(onboarding: false, onDone: (){
+                        _showMirroringModal();
+                      })));
+                    }
+                  },
                 ),
             ],
           ),
@@ -986,7 +1317,6 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       ),
     );
   }
-
   Widget _buildCastGridItem({
     required String iconPath,
     required String label,
@@ -1004,11 +1334,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              iconPath,
-              width: 48,
-              height: 48,
-            ),
+            Image.asset(iconPath, width: 48, height: 48),
             const SizedBox(height: 12),
             Text(
               label,
@@ -1028,26 +1354,33 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
   final List<Map<String, String>> _defaultIptvChannels = [
     {
       'name': 'Al Jazeera News',
-      'logo': 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Al_Jazeera_English_logo.svg/320px-Al_Jazeera_English_logo.svg.png',
+      'logo':
+          'https://upload.wikimedia.org/wikipedia/en/thumb/f/f2/Al_Jazeera_English_logo.svg/320px-Al_Jazeera_English_logo.svg.png',
       'url': 'https://live-amg-el.akamaized.net/playlist.m3u8',
       'category': 'News',
     },
     {
       'name': 'NASA Public TV',
-      'logo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/200px-NASA_logo.svg.png',
-      'url': 'https://ntv1.akamaized.net/hls/live/2014027/NASA-NTV1-HLS/master.m3u8',
+      'logo':
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/200px-NASA_logo.svg.png',
+      'url':
+          'https://ntv1.akamaized.net/hls/live/2014027/NASA-NTV1-HLS/master.m3u8',
       'category': 'Science',
     },
     {
       'name': 'DW English News',
-      'logo': 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Deutsche_Welle_logo.svg/200px-Deutsche_Welle_logo.svg.png',
-      'url': 'https://dwamdstream102.akamaized.net/hls/live/2014162/dwamdstream102/master.m3u8',
+      'logo':
+          'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Deutsche_Welle_logo.svg/200px-Deutsche_Welle_logo.svg.png',
+      'url':
+          'https://dwamdstream102.akamaized.net/hls/live/2014162/dwamdstream102/master.m3u8',
       'category': 'News',
     },
     {
       'name': 'Red Bull Live TV',
-      'logo': 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f5/Red_Bull_TV_logo.svg/320px-Red_Bull_TV_logo.svg.png',
-      'url': 'https://rbmn-live.akamaized.net/hls/live/2002830/sports/master.m3u8',
+      'logo':
+          'https://upload.wikimedia.org/wikipedia/en/thumb/f/f5/Red_Bull_TV_logo.svg/320px-Red_Bull_TV_logo.svg.png',
+      'url':
+          'https://rbmn-live.akamaized.net/hls/live/2002830/sports/master.m3u8',
       'category': 'Sports',
     },
   ];
@@ -1079,7 +1412,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       _isLoadingIptv = true;
     });
     try {
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final res = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 10));
       if (!mounted) return;
       if (res.statusCode == 200) {
         final parsed = _parseM3u(res.body);
@@ -1087,7 +1422,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           _parsedIptvChannels = parsed;
         });
       } else {
-        Get.snackbar('IPTV Error', 'Failed to load playlist. Status code: ${res.statusCode}');
+        Get.snackbar(
+          'IPTV Error',
+          'Failed to load playlist. Status code: ${res.statusCode}',
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -1147,8 +1485,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
-          final List<Map<String, String>> channels = _parsedIptvChannels.isNotEmpty 
-              ? _parsedIptvChannels 
+          final List<Map<String, String>> channels =
+              _parsedIptvChannels.isNotEmpty
+              ? _parsedIptvChannels
               : _defaultIptvChannels;
 
           return Container(
@@ -1181,7 +1520,11 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                         const SizedBox(width: 10),
                         const Text(
                           'IPTV Player',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -1189,7 +1532,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                       children: [
                         IconButton(
                           icon: Icon(
-                            showUrlInput ? Icons.playlist_play_rounded : Icons.settings_rounded, 
+                            showUrlInput
+                                ? Icons.playlist_play_rounded
+                                : Icons.settings_rounded,
                             color: Colors.white70,
                           ),
                           onPressed: () {
@@ -1213,7 +1558,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                       Expanded(
                         child: TextField(
                           controller: iptvUrlController,
-                          style: const TextStyle(fontSize: 14, color: Colors.white),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Enter M3U playlist URL...',
                             hintStyle: const TextStyle(color: Colors.white30),
@@ -1223,7 +1571,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide.none,
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ),
@@ -1240,8 +1591,13 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF794DEB),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: const Text('LOAD'),
                       ),
@@ -1252,7 +1608,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 if (_isLoadingIptv)
                   const Expanded(
                     child: Center(
-                      child: CircularProgressIndicator(color: Color(0xFF794DEB)),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF794DEB),
+                      ),
                     ),
                   )
                 else ...[
@@ -1267,10 +1625,15 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.03),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white.withOpacity(0.05)),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.05),
+                            ),
                           ),
                           child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 6,
+                            ),
                             leading: Container(
                               width: 44,
                               height: 44,
@@ -1278,38 +1641,62 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                                 color: Colors.white.withOpacity(0.04),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: (channel['logo'] != null &&
+                              child:
+                                  (channel['logo'] != null &&
                                       channel['logo']!.isNotEmpty &&
-                                      (channel['logo']!.startsWith('http://') || channel['logo']!.startsWith('https://')))
+                                      (channel['logo']!.startsWith('http://') ||
+                                          channel['logo']!.startsWith(
+                                            'https://',
+                                          )))
                                   ? ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
                                       child: Image.network(
                                         channel['logo']!,
                                         fit: BoxFit.contain,
-                                        errorBuilder: (context, error, stackTrace) => const Icon(
-                                          Icons.tv_rounded, 
-                                          color: Colors.white30,
-                                        ),
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                const Icon(
+                                                  Icons.tv_rounded,
+                                                  color: Colors.white30,
+                                                ),
                                       ),
                                     )
-                                  : const Icon(Icons.tv_rounded, color: Colors.white30),
+                                  : const Icon(
+                                      Icons.tv_rounded,
+                                      color: Colors.white30,
+                                    ),
                             ),
                             title: Text(
                               channel['name'] ?? 'Unknown Channel',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
                             ),
                             subtitle: Padding(
                               padding: const EdgeInsets.only(top: 4.0),
                               child: Text(
                                 channel['category'] ?? 'General',
-                                style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
                               ),
                             ),
-                            trailing: const Icon(Icons.cast_connected_rounded, color: Color(0xFF794DEB), size: 20),
+                            trailing: const Icon(
+                              Icons.cast_connected_rounded,
+                              color: Color(0xFF794DEB),
+                              size: 20,
+                            ),
                             onTap: () {
                               final streamUrl = channel['url'];
                               if (streamUrl != null && streamUrl.isNotEmpty) {
-                                _startCast(streamUrl, 'v', name: channel['name']);
+                                _startCast(
+                                  streamUrl,
+                                  'v',
+                                  name: channel['name'],
+                                );
                                 Navigator.pop(context);
                               }
                             },
@@ -1364,7 +1751,11 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                     const SizedBox(width: 10),
                     const Text(
                       'Web Browser Cast',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -1404,10 +1795,15 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF794DEB),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('OPEN ON TV', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'OPEN ON TV',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1421,11 +1817,22 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                         }
                       },
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF794DEB), width: 1.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        side: const BorderSide(
+                          color: Color(0xFF794DEB),
+                          width: 1.5,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('CAST VIDEO', style: TextStyle(color: Color(0xFF794DEB), fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'CAST VIDEO',
+                        style: TextStyle(
+                          color: Color(0xFF794DEB),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -1441,10 +1848,15 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF794DEB),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: const Text('CAST VIDEO STREAM', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'CAST VIDEO STREAM',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(height: 10),
               const Text(
@@ -1490,7 +1902,11 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                     const SizedBox(width: 10),
                     const Text(
                       'Screen Mirroring',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -1503,18 +1919,26 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             const SizedBox(height: 12),
             const Text(
               'How to mirror your device screen to the TV:',
-              style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
               isAndroid
                   ? '1. Ensure both your phone and TV are connected to the same Wi-Fi network.\n'
-                      '2. Tap "START MIRRORING" below to open the Android Cast panel.\n'
-                      '3. Select your Smart TV from the discovered device list to begin cloning your screen.'
+                        '2. Tap "START MIRRORING" below to open the Android Cast panel.\n'
+                        '3. Select your Smart TV from the discovered device list to begin cloning your screen.'
                   : '1. Ensure both your phone and TV are connected to the same Wi-Fi network.\n'
-                      '2. Swipe down from the top-right corner of your screen to open the iOS Control Center.\n'
-                      '3. Tap "Screen Mirroring" (dual overlapping rectangles) and select your TV.',
-              style: const TextStyle(color: Colors.white54, fontSize: 13, height: 1.5),
+                        '2. Swipe down from the top-right corner of your screen to open the iOS Control Center.\n'
+                        '3. Tap "Screen Mirroring" (dual overlapping rectangles) and select your TV.',
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 13,
+                height: 1.5,
+              ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -1524,19 +1948,27 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                   try {
                     await _nativeChannel.invokeMethod('launchCastSettings');
                   } catch (e) {
-                    _showToast('Could not open Cast settings: $e', backgroundColor: AppTheme.error);
+                    _showToast(
+                      'Could not open Cast settings: $e',
+                      backgroundColor: AppTheme.error,
+                    );
                   }
                 } else {
-                  _showToast('Swipe down top-right to open Control Center & choose Screen Mirroring.', backgroundColor: AppTheme.info);
+                  _showToast(
+                    'Swipe down top-right to open Control Center & choose Screen Mirroring.',
+                    backgroundColor: AppTheme.info,
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF794DEB),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: Text(
-                isAndroid ? 'START MIRRORING' : 'GOT IT', 
+                isAndroid ? 'START MIRRORING' : 'GOT IT',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -1545,8 +1977,6 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       ),
     );
   }
-
-
 
   // Tab 4: Keyboard Input
   Widget _buildKeyboardInput() {
@@ -1561,7 +1991,11 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         children: [
           const Text(
             'REMOTE KEYBOARD',
-            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 14),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.0,
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -1595,7 +2029,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Send character-by-character', style: TextStyle(fontSize: 12, color: Colors.white54)),
+              const Text(
+                'Send character-by-character',
+                style: TextStyle(fontSize: 12, color: Colors.white54),
+              ),
               Switch(
                 value: _sendCharByChar,
                 onChanged: (val) {
@@ -1604,7 +2041,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                   });
                 },
                 activeColor: AppTheme.primary,
-              )
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -1612,7 +2049,12 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           // Custom Action Keys Panel
           const Text(
             'KEYBOARD ACTIONS',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white30, letterSpacing: 0.5),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              color: Colors.white30,
+              letterSpacing: 0.5,
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -1621,7 +2063,9 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
               _buildKeyboardActionBtn(
                 label: 'BACKSPACE',
                 icon: Icons.backspace,
-                onPressed: () => _sendAction(TvKey.back), // using back or we can expose backspace key press
+                onPressed: () => _sendAction(
+                  TvKey.back,
+                ), // using back or we can expose backspace key press
               ),
               _buildKeyboardActionBtn(
                 label: 'ENTER',
@@ -1646,7 +2090,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 },
               ),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -1673,8 +2117,12 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 const SizedBox(height: 6),
                 Text(
                   label,
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white54),
-                )
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white54,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1704,7 +2152,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           // Banner: Unlock the Full Experience
           GestureDetector(
             onTap: () {
-              Get.to(() => PremiumCreditView(onboarding: false, onDone: (){},));
+              Get.to(() => PremiumCreditView(onboarding: false, onDone: () {}));
             },
             child: Container(
               height: 90,
@@ -1718,11 +2166,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/settting/ic.png',
-                    width: 32,
-                    height: 32,
-                  ),
+                  Image.asset('assets/settting/ic.png', width: 32, height: 32),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
@@ -1763,7 +2207,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.04),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.0),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.06),
+                width: 1.0,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1809,7 +2256,6 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
               ],
             ),
           ),
-
         ],
       ),
     );
@@ -1827,11 +2273,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 14.0),
         child: Row(
           children: [
-            Image.asset(
-              iconPath,
-              width: 24,
-              height: 24,
-            ),
+            Image.asset(iconPath, width: 24, height: 24),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
@@ -1870,7 +2312,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 decoration: BoxDecoration(
                   color: const Color(0xFF17171A).withOpacity(0.9),
                   borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.0),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1.0,
+                  ),
                 ),
                 padding: EdgeInsets.only(
                   left: 24,
@@ -1919,16 +2364,24 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.03),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.06)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.06),
+                        ),
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: TextField(
                         controller: _keyboardController,
                         autofocus: true,
-                        style: const TextStyle(fontSize: 16, color: Colors.white, fontFamily: 'SF Pro Display'),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                          fontFamily: 'SF Pro Display',
+                        ),
                         onChanged: (text) {
                           if (_sendCharByChar && text.isNotEmpty) {
-                            widget.manager.sendText(text.substring(text.length - 1));
+                            widget.manager.sendText(
+                              text.substring(text.length - 1),
+                            );
                           }
                         },
                         onSubmitted: (text) {
@@ -1939,9 +2392,15 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                           hintText: 'Type here to begin...',
                           hintStyle: const TextStyle(color: Colors.white24),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
                           suffixIcon: IconButton(
-                            icon: const Icon(Icons.clear, color: Colors.white30),
+                            icon: const Icon(
+                              Icons.clear,
+                              color: Colors.white30,
+                            ),
                             onPressed: () => _keyboardController.clear(),
                           ),
                         ),
@@ -1954,7 +2413,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                         const Text(
                           'Send character-by-character',
                           style: TextStyle(
-                            fontSize: 13, 
+                            fontSize: 13,
                             color: Colors.white70,
                             fontFamily: 'SF Pro Display',
                           ),
@@ -2044,8 +2503,8 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 Text(
                   label,
                   style: const TextStyle(
-                    fontSize: 10, 
-                    fontWeight: FontWeight.bold, 
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                     color: Colors.white70,
                     fontFamily: 'SF Pro Display',
                   ),
@@ -2071,7 +2530,11 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             const SizedBox(height: 16),
             Text(
               '$featureName Limited',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
@@ -2138,41 +2601,39 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             letterSpacing: 0.5,
             color: Colors.white38,
           ),
-        )
+        ),
       ],
     );
   }
+
   Widget _buildTactileDpad() {
     return Container(
       width: 240,
       height: 240,
-        decoration: inset.BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: const LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF794DEB),
-              Color(0xFF512CB8),
-            ],
-          ),
-          boxShadow: [
-            // Top semicircle white inner highlight
-            inset.BoxShadow(
-              inset: true,
-              color: Colors.white.withOpacity(0.20),
-              blurRadius: 18,
-              offset: const Offset(0, 12),
-            ),
-            // Bottom semicircle black inner shadow
-            inset.BoxShadow(
-              inset: true,
-              color: Colors.black.withOpacity(0.45),
-              blurRadius: 20,
-              offset: const Offset(0, -12),
-            ),
-          ],
+      decoration: inset.BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
         ),
+        boxShadow: [
+          // Top semicircle white inner highlight
+          inset.BoxShadow(
+            inset: true,
+            color: Colors.white.withOpacity(0.20),
+            blurRadius: 18,
+            offset: const Offset(0, 12),
+          ),
+          // Bottom semicircle black inner shadow
+          inset.BoxShadow(
+            inset: true,
+            color: Colors.black.withOpacity(0.45),
+            blurRadius: 20,
+            offset: const Offset(0, -12),
+          ),
+        ],
+      ),
       child: ClipOval(
         child: Stack(
           children: [
@@ -2223,17 +2684,14 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                   HapticFeedback.mediumImpact();
                 },
                 child: Container(
-                  width: 110,  // was 150
+                  width: 110, // was 150
                   height: 110, // was 150
                   decoration: inset.BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: const LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFF794DEB),
-                        Color(0xFF512CB8),
-                      ],
+                      colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
                     ),
                     border: Border.all(color: Colors.black, width: 3.5),
                     boxShadow: [
@@ -2258,7 +2716,8 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                       'OK',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16, // slightly smaller to match smaller button
+                        fontSize: 16,
+                        // slightly smaller to match smaller button
                         color: Colors.white,
                         letterSpacing: 0.5,
                       ),
@@ -2328,8 +2787,10 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: 40,  // was 54
-        height: 40, // was 54
+        width: 40,
+        // was 54
+        height: 40,
+        // was 54
         alignment: Alignment.center,
         decoration: const BoxDecoration(
           color: Colors.transparent,
@@ -2350,14 +2811,22 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surface,
         title: const Text('Disconnect Device?'),
-        content: const Text('Would you like to search for other devices of the same brand or switch TV brands entirely?'),
+        content: const Text(
+          'Would you like to search for other devices of the same brand or switch TV brands entirely?',
+        ),
         actions: [
           TextButton(
-            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'CANCEL',
+              style: TextStyle(color: Colors.white54),
+            ),
             onPressed: () => Navigator.pop(context),
           ),
           OutlinedButton(
-            style: OutlinedButton.styleFrom(foregroundColor: AppTheme.primary, side: const BorderSide(color: AppTheme.primary)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.primary,
+              side: const BorderSide(color: AppTheme.primary),
+            ),
             child: const Text('SWITCH BRAND'),
             onPressed: () {
               Navigator.pop(context);
@@ -2497,14 +2966,22 @@ class CrosshairPainter extends CustomPainter {
     // Draw horizontal dotted line
     double startX = 0;
     while (startX < size.width) {
-      canvas.drawLine(Offset(startX, size.height / 2), Offset(startX + dashWidth, size.height / 2), paint);
+      canvas.drawLine(
+        Offset(startX, size.height / 2),
+        Offset(startX + dashWidth, size.height / 2),
+        paint,
+      );
       startX += dashWidth + dashSpace;
     }
 
     // Draw vertical dotted line
     double startY = 0;
     while (startY < size.height) {
-      canvas.drawLine(Offset(size.width / 2, startY), Offset(size.width / 2, startY + dashWidth), paint);
+      canvas.drawLine(
+        Offset(size.width / 2, startY),
+        Offset(size.width / 2, startY + dashWidth),
+        paint,
+      );
       startY += dashWidth + dashSpace;
     }
   }

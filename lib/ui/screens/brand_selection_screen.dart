@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:remote_controller/for_ads/ads/ads_variable.dart';
+import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -17,6 +18,9 @@ class BrandSelectionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirebaseAnalyticsService.logEvent(eventName: 'BRAND_SELECTION_SCREEN');
+    });
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -154,6 +158,10 @@ class BrandSelectionScreen extends StatelessWidget {
                       return _buildBrandCard(
                         image: b['image']!,
                         onTap: (){
+                          final eventBrandName = b['brand']!.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9_]'), '_');
+                          FirebaseAnalyticsService.logEvent(
+                            eventName: 'BRAND_CLICKED_$eventBrandName',
+                          );
                           AdsVariable.onShowAds(context, onComplete: (){
                             _onBrandSelected(context, b['brand']!);
                           });

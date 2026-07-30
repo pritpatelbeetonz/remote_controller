@@ -28,7 +28,7 @@ class WelPageviewState extends State<WelPageview> {
 
   @override
   void initState() {
-    //FirebaseAnalyticsService.logEvent(eventName: 'INTROSCREENS');
+    FirebaseAnalyticsService.logEvent(eventName: 'INTROSCREENS');
     super.initState();
     checkInterNetConnectivity();
   }

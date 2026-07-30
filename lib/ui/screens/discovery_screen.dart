@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -36,6 +37,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
   @override
   void initState() {
+    FirebaseAnalyticsService.logEvent(eventName: 'DISCOVERY_SCREEN');
     super.initState();
     _selectedBrand = widget.selectedBrand;
     String initialPort;

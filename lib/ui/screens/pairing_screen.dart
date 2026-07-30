@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
@@ -24,6 +25,7 @@ class _PairingScreenState extends State<PairingScreen> {
 
   @override
   void initState() {
+    FirebaseAnalyticsService.logEvent(eventName: 'PAIRING_SCREEN');
     super.initState();
     widget.manager.addListener(_onStateChange);
   }
