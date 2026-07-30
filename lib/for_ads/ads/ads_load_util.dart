@@ -336,373 +336,202 @@ class AdsLoadUtil extends GetxController {
   static RxBool isFullNativeIntroAdLoaded = false.obs;
   static RxBool isSmallThirdNativeIntroAdLoaded = false.obs;
 
-  Future<NativeAd> loadSurveyBigNative1(
-    String adUnitId,
-    bool isBigNative,
-  ) async {
-    showLog("isBigNative---===>$isBigNative");
-    showLog(
-      "loadSurveyBigNative1 counter---------------------------------------",
-    );
-    nativeBigAdSurvey1 = NativeAd(
-      adUnitId: adUnitId.toString(),
-      factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          FirebaseAnalyticsService.logEvent(
-            eventName: 'LOAD LANGUAGE BIG NATIVE 1',
-          );
-
-          nativeBigAdSurvey1 = ad as NativeAd?;
-          isBigNativeSurveyAdLoaded1.value = true;
-          showLog('isLoaded loadIntro1Native');
-        },
-        onAdFailedToLoad: (ad, error) {
-          showLog('onAdFailedToLoad Language Native');
-          nativeBigAdSurvey1!.dispose();
-          isBigNativeSurveyAdLoaded1.value = false;
-          isNativeAdFailedToLoadBigSurvey1.value = true;
-        },
-      ),
-      request: const AdRequest(),
-    );
-    await nativeBigAdSurvey1!.load();
-    return nativeBigAdSurvey1!;
-  }
-
-  Future<NativeAd> loadSurveyBigNative2(
-    String adUnitId,
-    bool isBigNative,
-  ) async {
-    showLog("isBigNative---===>$isBigNative");
-    showLog(
-      "loadSurveyBigNative2 counter---------------------------------------",
-    );
-    nativeBigAdSurvey2 = NativeAd(
-      adUnitId: adUnitId.toString(),
-      factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          FirebaseAnalyticsService.logEvent(
-            eventName: 'LOAD LANGUAGE BIG NATIVE 2',
-          );
-
-          nativeBigAdSurvey2 = ad as NativeAd?;
-          isBigNativeSurveyAdLoaded2.value = true;
-          showLog('isLoaded loadIntro1Native');
-        },
-        onAdFailedToLoad: (ad, error) {
-          showLog('onAdFailedToLoad Language Native');
-          nativeBigAdSurvey2!.dispose();
-          isBigNativeSurveyAdLoaded2.value = false;
-          isNativeAdFailedToLoadBigSurvey2.value = true;
-        },
-      ),
-      request: const AdRequest(),
-    );
-    await nativeBigAdSurvey2!.load();
-    return nativeBigAdSurvey2!;
-  }
-
-  Future<NativeAd> loadIntroFullNative(
-    String adUnitId,
-    bool isSmallNative,
-  ) async {
-    showLog("isSmallNative---===>$isSmallNative");
-    showLog(
-      "loadIntroFullNative counter---------------------------------------",
-    );
-    fullNativeAdIntro = NativeAd(
-      adUnitId: adUnitId.toString(),
-      factoryId: isSmallNative ? 'bigNativeAds' : 'fullNativeAds',
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          FirebaseAnalyticsService.logEvent(eventName: 'FULL_NATIVE_AD_LOAD');
-          fullNativeAdIntro = ad as NativeAd?;
-          isFullNativeIntroAdLoaded.value = true;
-          showLog('isLoaded loadFullNative');
-
-        },
-        onAdFailedToLoad: (ad, error) {
-          showLog('onAdFailedToLoad loadFullNative');
-          fullNativeAdIntro!.dispose();
-          isFullNativeIntroAdLoaded.value = false;
-          isFullNativeAdFailedToLoadIntro.value = true;
-        },
-      ),
-      request: const AdRequest(),
-    );
-    await fullNativeAdIntro!.load();
-    return fullNativeAdIntro!;
-  }
-
-  Future<NativeAd> loadSmallThirdIntroNative(
-    String adUnitId,
-    bool isSmallNative,
-  ) async {
-    showLog("isSmallNative---===>$isSmallNative");
-    showLog(
-      "loadIntroFullNative counter---------------------------------------",
-    );
-    smallThirdNativeAdIntro = NativeAd(
-      adUnitId: adUnitId.toString(),
-      factoryId: isSmallNative ? 'bigNativeAds' : 'fullNativeAds',
-      listener: NativeAdListener(
-        onAdLoaded: (ad) {
-          FirebaseAnalyticsService.logEvent(eventName: 'FULL_NATIVE_AD_LOAD');
-          smallThirdNativeAdIntro = ad as NativeAd?;
-          isSmallThirdNativeIntroAdLoaded.value = true;
-          showLog('isLoaded loadFullNative');
-        },
-        onAdFailedToLoad: (ad, error) {
-          showLog('onAdFailedToLoad loadFullNative');
-          smallThirdNativeAdIntro!.dispose();
-          isSmallThirdNativeIntroAdLoaded.value = false;
-          isSmallThirdNativeAdFailedToLoadIntro.value = true;
-        },
-      ),
-      request: const AdRequest(),
-    );
-    await smallThirdNativeAdIntro!.load();
-    return smallThirdNativeAdIntro!;
-  }
+  // Future<NativeAd> loadSurveyBigNative1(
+  //   String adUnitId,
+  //   bool isBigNative,
+  // ) async {
+  //   showLog("isBigNative---===>$isBigNative");
+  //   showLog(
+  //     "loadSurveyBigNative1 counter---------------------------------------",
+  //   );
+  //   nativeBigAdSurvey1 = NativeAd(
+  //     adUnitId: adUnitId.toString(),
+  //     factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
+  //     listener: NativeAdListener(
+  //       onAdLoaded: (ad) {
+  //         FirebaseAnalyticsService.logEvent(
+  //           eventName: 'LOAD LANGUAGE BIG NATIVE 1',
+  //         );
+  //
+  //         nativeBigAdSurvey1 = ad as NativeAd?;
+  //         isBigNativeSurveyAdLoaded1.value = true;
+  //         showLog('isLoaded loadIntro1Native');
+  //       },
+  //       onAdFailedToLoad: (ad, error) {
+  //         showLog('onAdFailedToLoad Language Native');
+  //         nativeBigAdSurvey1!.dispose();
+  //         isBigNativeSurveyAdLoaded1.value = false;
+  //         isNativeAdFailedToLoadBigSurvey1.value = true;
+  //       },
+  //     ),
+  //     request: const AdRequest(),
+  //   );
+  //   await nativeBigAdSurvey1!.load();
+  //   return nativeBigAdSurvey1!;
+  // }
+  //
+  // Future<NativeAd> loadSurveyBigNative2(
+  //   String adUnitId,
+  //   bool isBigNative,
+  // ) async {
+  //   showLog("isBigNative---===>$isBigNative");
+  //   showLog(
+  //     "loadSurveyBigNative2 counter---------------------------------------",
+  //   );
+  //   nativeBigAdSurvey2 = NativeAd(
+  //     adUnitId: adUnitId.toString(),
+  //     factoryId: isBigNative ? 'bigNativeAds' : 'fullNativeAds',
+  //     listener: NativeAdListener(
+  //       onAdLoaded: (ad) {
+  //         FirebaseAnalyticsService.logEvent(
+  //           eventName: 'LOAD LANGUAGE BIG NATIVE 2',
+  //         );
+  //
+  //         nativeBigAdSurvey2 = ad as NativeAd?;
+  //         isBigNativeSurveyAdLoaded2.value = true;
+  //         showLog('isLoaded loadIntro1Native');
+  //       },
+  //       onAdFailedToLoad: (ad, error) {
+  //         showLog('onAdFailedToLoad Language Native');
+  //         nativeBigAdSurvey2!.dispose();
+  //         isBigNativeSurveyAdLoaded2.value = false;
+  //         isNativeAdFailedToLoadBigSurvey2.value = true;
+  //       },
+  //     ),
+  //     request: const AdRequest(),
+  //   );
+  //   await nativeBigAdSurvey2!.load();
+  //   return nativeBigAdSurvey2!;
+  // }
+  //
+  // Future<NativeAd> loadIntroFullNative(
+  //   String adUnitId,
+  //   bool isSmallNative,
+  // ) async {
+  //   showLog("isSmallNative---===>$isSmallNative");
+  //   showLog(
+  //     "loadIntroFullNative counter---------------------------------------",
+  //   );
+  //   fullNativeAdIntro = NativeAd(
+  //     adUnitId: adUnitId.toString(),
+  //     factoryId: isSmallNative ? 'bigNativeAds' : 'fullNativeAds',
+  //     listener: NativeAdListener(
+  //       onAdLoaded: (ad) {
+  //         FirebaseAnalyticsService.logEvent(eventName: 'FULL_NATIVE_AD_LOAD');
+  //         fullNativeAdIntro = ad as NativeAd?;
+  //         isFullNativeIntroAdLoaded.value = true;
+  //         showLog('isLoaded loadFullNative');
+  //
+  //       },
+  //       onAdFailedToLoad: (ad, error) {
+  //         showLog('onAdFailedToLoad loadFullNative');
+  //         fullNativeAdIntro!.dispose();
+  //         isFullNativeIntroAdLoaded.value = false;
+  //         isFullNativeAdFailedToLoadIntro.value = true;
+  //       },
+  //     ),
+  //     request: const AdRequest(),
+  //   );
+  //   await fullNativeAdIntro!.load();
+  //   return fullNativeAdIntro!;
+  // }
+  //
+  // Future<NativeAd> loadSmallThirdIntroNative(
+  //   String adUnitId,
+  //   bool isSmallNative,
+  // ) async {
+  //   showLog("isSmallNative---===>$isSmallNative");
+  //   showLog(
+  //     "loadIntroFullNative counter---------------------------------------",
+  //   );
+  //   smallThirdNativeAdIntro = NativeAd(
+  //     adUnitId: adUnitId.toString(),
+  //     factoryId: isSmallNative ? 'bigNativeAds' : 'fullNativeAds',
+  //     listener: NativeAdListener(
+  //       onAdLoaded: (ad) {
+  //         FirebaseAnalyticsService.logEvent(eventName: 'FULL_NATIVE_AD_LOAD');
+  //         smallThirdNativeAdIntro = ad as NativeAd?;
+  //         isSmallThirdNativeIntroAdLoaded.value = true;
+  //         showLog('isLoaded loadFullNative');
+  //       },
+  //       onAdFailedToLoad: (ad, error) {
+  //         showLog('onAdFailedToLoad loadFullNative');
+  //         smallThirdNativeAdIntro!.dispose();
+  //         isSmallThirdNativeIntroAdLoaded.value = false;
+  //         isSmallThirdNativeAdFailedToLoadIntro.value = true;
+  //       },
+  //     ),
+  //     request: const AdRequest(),
+  //   );
+  //   await smallThirdNativeAdIntro!.load();
+  //   return smallThirdNativeAdIntro!;
+  // }
 }
 
-/// Big Native Survey1
-class SurveyBigNativeAds1 extends StatefulWidget {
-  final bool isBigNative;
-  final NativeAd? showNativeAd;
-  final RxBool isNativeAdLoaded;
-  final RxBool isNativeAdFailedToLoad;
-
-  const SurveyBigNativeAds1({
-    super.key,
-    required this.isBigNative,
-    required this.showNativeAd,
-    required this.isNativeAdLoaded,
-    required this.isNativeAdFailedToLoad,
-  });
-
-  @override
-  State<SurveyBigNativeAds1> createState() => _SurveyBigNativeAds1State();
-}
-
-class _SurveyBigNativeAds1State extends State<SurveyBigNativeAds1> {
-  @override
-  Widget build(BuildContext context) {
-    showLog(
-      "CHECK NULL SurveyBigNativeAds1>> ${widget.isNativeAdLoaded.value}",
-    );
-    showLog("SurveyBigNativeAds1--->> ${widget.isNativeAdFailedToLoad.value}");
-    showLog("SurveyBigNativeAds2--->> ${widget.showNativeAd}");
-
-    return Obx(
-      () => widget.isNativeAdLoaded.value && widget.showNativeAd != null
-          ? StatefulBuilder(
-        builder: (context, setState) {
-          // Fluttertoast.showToast(msg: "Big Native 1 Show");
-          final width = MediaQuery.of(context).size.width;
-          final height = MediaQuery.of(context).size.height;
-
-          return Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(5.w),
-              color: HexColor(AdsVariable.nativeBGColor),
-            ),
-            padding: EdgeInsets.only(bottom: 5.w, top: 5.w),
-            width: width,
-            height: widget.isBigNative ? height / 2.5 : height / 1.04,
-            child: AdWidget(ad: widget.showNativeAd!),
-          );
-        },
-      )
-
-          : getShimmerWidget(),
-    );
-  }
-
-  Widget getShimmerWidget() {
-    if (widget.isNativeAdFailedToLoad.value) {
-      return const SizedBox();
-    } else {
-      return widget.isBigNative
-          ? const ShimmerBigNative()
-          : const ShimmerSmallNative();
-    }
-  }
-}
-
-/// Big Native Survey2
-class SurveyBigNativeAds2 extends StatefulWidget {
-  final bool isBigNative;
-  final NativeAd? showNativeAd;
-  final RxBool isNativeAdLoaded;
-  final RxBool isNativeAdFailedToLoad;
-
-  const SurveyBigNativeAds2({
-    super.key,
-    required this.isBigNative,
-    required this.showNativeAd,
-    required this.isNativeAdLoaded,
-    required this.isNativeAdFailedToLoad,
-  });
-
-  @override
-  State<SurveyBigNativeAds2> createState() => _SurveyBigNativeAds2State();
-}
-
-class _SurveyBigNativeAds2State extends State<SurveyBigNativeAds2> {
-  @override
-  Widget build(BuildContext context) {
-    showLog(
-      "CHECK NULL SurveyBigNativeAds2>> ${widget.isNativeAdLoaded.value}",
-    );
-    showLog("SurveyBigNativeAds2--->> ${widget.isNativeAdFailedToLoad.value}");
-    return Obx(
-      () => widget.isNativeAdLoaded.value && widget.showNativeAd != null
-          ? StatefulBuilder(
-              builder: (context, setState) {
-                // Fluttertoast.showToast(msg: "Big Native 2 Show");
-                final width = MediaQuery.of(context).size.width;
-                final height = MediaQuery.of(context).size.height;
-
-                return Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(5.w),
-                    color: HexColor(AdsVariable.nativeBGColor),
-                  ),
-                  padding: EdgeInsets.only(bottom: 10.w, top: 15.w),
-                  width: width,
-                    height: widget.isBigNative ? height / 2.5 : height / 1.04,
-                  child: AdWidget(ad: widget.showNativeAd!),
-                );
-              },
-            )
-          : getShimmerWidget(),
-    );
-  }
-
-  Widget getShimmerWidget() {
-    if (widget.isNativeAdFailedToLoad.value) {
-      return const SizedBox();
-    } else {
-      return widget.isBigNative
-          ? const ShimmerBigNative()
-          : const ShimmerSmallNative();
-    }
-  }
-}
 
 /// Small Native Third Intro
-class SmallThirdIntroNativeWidget extends StatefulWidget {
-  final bool isBigNative;
-  final NativeAd? showNativeAd;
-  final RxBool isNativeAdLoaded;
-  final RxBool isNativeAdFailedToLoad;
+// class SmallThirdIntroNativeWidget extends StatefulWidget {
+//   final bool isBigNative;
+//   final NativeAd? showNativeAd;
+//   final RxBool isNativeAdLoaded;
+//   final RxBool isNativeAdFailedToLoad;
+//
+//   const SmallThirdIntroNativeWidget({
+//     super.key,
+//     required this.isBigNative,
+//     required this.showNativeAd,
+//     required this.isNativeAdLoaded,
+//     required this.isNativeAdFailedToLoad,
+//   });
+//
+//   @override
+//   State<SmallThirdIntroNativeWidget> createState() =>
+//       _SmallThirdIntroNativeWidgetState();
+// }
+//
+// class _SmallThirdIntroNativeWidgetState
+//     extends State<SmallThirdIntroNativeWidget> {
+//   @override
+//   Widget build(BuildContext context) {
+//     showLog(
+//       "CHECK NULL SmallThirdIntroNative>> ${widget.isNativeAdLoaded.value}",
+//     );
+//     showLog(
+//       "SmallThirdIntroNative--->> ${widget.isNativeAdFailedToLoad.value}",
+//     );
+//     return Obx(
+//       () => widget.isNativeAdLoaded.value && widget.showNativeAd != null
+//           ? StatefulBuilder(
+//               builder: (context, setState) {
+//                 return Container(
+//                   decoration: BoxDecoration(
+//                     borderRadius: BorderRadius.circular(5.w),
+//                     color: HexColor(AdsVariable.nativeBGColor),
+//                   ),
+//                   padding: EdgeInsets.only(bottom: 10.w, top: 0.w),
+//                   width: Get.width,
+//                   height: widget.isBigNative
+//                       ? Get.height / 2.5
+//                       : Get.height / 4.2,
+//                   child: AdWidget(ad: widget.showNativeAd!),
+//                 );
+//               },
+//             )
+//           : getShimmerWidget(),
+//     );
+//   }
+//
+//   Widget getShimmerWidget() {
+//     if (widget.isNativeAdFailedToLoad.value) {
+//       return SizedBox(height: 50.h);
+//     } else {
+//       return widget.isBigNative
+//           ? const ShimmerBigNative()
+//           : const ShimmerSmallNative();
+//     }
+//   }
+// }
 
-  const SmallThirdIntroNativeWidget({
-    super.key,
-    required this.isBigNative,
-    required this.showNativeAd,
-    required this.isNativeAdLoaded,
-    required this.isNativeAdFailedToLoad,
-  });
-
-  @override
-  State<SmallThirdIntroNativeWidget> createState() =>
-      _SmallThirdIntroNativeWidgetState();
-}
-
-class _SmallThirdIntroNativeWidgetState
-    extends State<SmallThirdIntroNativeWidget> {
-  @override
-  Widget build(BuildContext context) {
-    showLog(
-      "CHECK NULL SmallThirdIntroNative>> ${widget.isNativeAdLoaded.value}",
-    );
-    showLog(
-      "SmallThirdIntroNative--->> ${widget.isNativeAdFailedToLoad.value}",
-    );
-    return Obx(
-      () => widget.isNativeAdLoaded.value && widget.showNativeAd != null
-          ? StatefulBuilder(
-              builder: (context, setState) {
-                return Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(5.w),
-                    color: HexColor(AdsVariable.nativeBGColor),
-                  ),
-                  padding: EdgeInsets.only(bottom: 10.w, top: 0.w),
-                  width: Get.width,
-                  height: widget.isBigNative
-                      ? Get.height / 2.5
-                      : Get.height / 4.2,
-                  child: AdWidget(ad: widget.showNativeAd!),
-                );
-              },
-            )
-          : getShimmerWidget(),
-    );
-  }
-
-  Widget getShimmerWidget() {
-    if (widget.isNativeAdFailedToLoad.value) {
-      return SizedBox(height: 50.h);
-    } else {
-      return widget.isBigNative
-          ? const ShimmerBigNative()
-          : const ShimmerSmallNative();
-    }
-  }
-}
-
-/// Full Native ads
-class FullNativeAdScreen extends StatefulWidget {
-
-
-  const FullNativeAdScreen({super.key,});
-
-  @override
-  State<FullNativeAdScreen> createState() => _FullNativeAdScreenState();
-}
-
-class _FullNativeAdScreenState extends State<FullNativeAdScreen> {
-
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-    // Fluttertoast.showToast(msg: "Full Native show");
-  }
-  @override
-  Widget build(BuildContext context) {
-    log("intro full Ad is ${AdsVariable.fullNativeIntroAdIOS}");
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: getFinalNativeAd(),
-    );
-
-
-  }
-
-  Widget getFinalNativeAd() {
-    if (AdsLoadUtil.isFullNativeAdFailedToLoadIntro.value) {
-      return const SizedBox(height: 0);
-    } else {
-      return (AdsVariable.isPurchase == false &&
-              AdsVariable.fullNativeIntroAdIOS != "11")
-          ? AdsLoadUtil.fullNativeAdIntro != null
-                ? SizedBox(
-                    height: Get.height,
-                    width:Get.width,
-                      child: AdWidget(ad: AdsLoadUtil.fullNativeAdIntro!),
-                  )
-                : const SizedBox(height: 0)
-          : const SizedBox(height: 0);
-    }
-  }
-}
 
 class BannerAdsWidget extends StatelessWidget {
   final BannerAdState adState;

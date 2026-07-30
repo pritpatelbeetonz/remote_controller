@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:remote_controller/welcomePageView.dart';
-import '../../for_ads/ads/ads_load_util.dart';
 import '../../for_ads/ads/ads_splash_utils.dart';
 import '../../for_ads/ads/ads_variable.dart';
 import '../../for_ads/utils/firebase_analysis.dart';
@@ -34,7 +33,6 @@ class SurveyFormState extends State<SurveyForm> {
         isInterNetConnected = true;
         print('=>>>> Internet Connected');
       });
-      loadPreLoadIntroFullNativeAds();
     }
   }
 
@@ -47,29 +45,6 @@ class SurveyFormState extends State<SurveyForm> {
       canPop: false,
       child: Scaffold(
         backgroundColor: Colors.black,
-        bottomNavigationBar: SafeArea(
-          child: (AdsVariable.isPurchase == false)
-              ? isInterNetConnected
-                    ? selectedIndex == -1
-                        ? SurveyBigNativeAds1(
-                            showNativeAd: AdsVariable.nativeBigAdSurvey1,
-                            isBigNative: true,
-                            isNativeAdLoaded:
-                                AdsLoadUtil.isBigNativeSurveyAdLoaded1,
-                            isNativeAdFailedToLoad:
-                                AdsLoadUtil.isNativeAdFailedToLoadBigSurvey1,
-                          )
-                        : SurveyBigNativeAds2(
-                            showNativeAd: AdsVariable.nativeBigAdSurvey2,
-                            isBigNative: true,
-                            isNativeAdLoaded:
-                                AdsLoadUtil.isBigNativeSurveyAdLoaded2,
-                            isNativeAdFailedToLoad:
-                                AdsLoadUtil.isNativeAdFailedToLoadBigSurvey2,
-                          )
-                    : const SizedBox()
-              : const SizedBox(),
-        ),
         body: SafeArea(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 0.h),

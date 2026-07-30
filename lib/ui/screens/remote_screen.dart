@@ -9,6 +9,8 @@ import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
 import 'discovery_screen.dart';
 import 'brand_selection_screen.dart';
+import '../../RatingScreen.dart';
+import 'package:flutter_inset_shadow/flutter_inset_shadow.dart' as inset;
 
 class RemoteScreen extends StatefulWidget {
   final TvRemoteManager manager;
@@ -20,15 +22,9 @@ class RemoteScreen extends StatefulWidget {
 }
 
 class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderStateMixin {
-  bool _showConsole = false;
-  late TabController _tabController;
+  late final TabController _tabController;
   int _currentTabIndex = 0;
 
-  // App Launcher State
-  List<Map<String, String>> _installedApps = [];
-  bool _isLoadingApps = false;
-
-  // Casting State
   final TextEditingController _castUrlController = TextEditingController(
     text: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
   );
@@ -36,15 +32,18 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
   bool _isCasting = false;
   String? _activeCastName;
 
-  // Keyboard State
   final TextEditingController _keyboardController = TextEditingController();
   bool _sendCharByChar = true;
 
-  // Swipe Trackpad/Drag Pad State
-  bool _useTrackpad = false;
+  bool _useTrackpad = true; // Default to swipe trackpad
   double _dragAccumulatorX = 0.0;
   double _dragAccumulatorY = 0.0;
   static const double _swipeThreshold = 40.0;
+
+  bool _showConsole = false;
+  bool _isLoadingApps = false;
+  List<Map<String, String>> _installedApps = [];
+  bool _isNavigating = false;
 
   late final List<String> _activeTabs;
 
@@ -54,7 +53,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     _activeTabs = ['control'];
     if (_supportsAppLauncher) _activeTabs.add('apps');
     if (_supportsCasting) _activeTabs.add('cast');
-    if (_supportsKeyboard) _activeTabs.add('keyboard');
+    _activeTabs.add('settings');
 
     _tabController = TabController(length: _activeTabs.length, vsync: this);
     _tabController.addListener(() {
@@ -255,70 +254,66 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
           children: [
             // Top App Bar/Header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.power_settings_new, color: AppTheme.error),
-                    onPressed: _showDisconnectConfirmation,
-                  ),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          deviceName.toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            letterSpacing: 1.5,
+                    child: GestureDetector(
+                      onLongPress: () {
+                        setState(() {
+                          _showConsole = !_showConsole;
+                        });
+                      },
+                      child: Text(
+                        manager.connectionState == TvConnectionState.connected
+                            ? deviceName
+                            : 'TV is not connected',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'SF Pro Display',
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Get.offAll(() => BrandSelectionScreen(manager: manager));
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E22),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppTheme.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Image.asset(
+                            'assets/home/connect.png',
+                            width: 18,
+                            height: 18,
                             color: Colors.white,
                           ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: manager.connectionState == TvConnectionState.connected
-                                    ? AppTheme.success
-                                    : AppTheme.error,
-                              ),
+                          const SizedBox(width: 8),
+                          Text(
+                            manager.connectionState == TvConnectionState.connected
+                                ? 'Connected'
+                                : 'Connect',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'SF Pro Display',
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              manager.connectionState == TvConnectionState.connected
-                                  ? 'CONNECTED'
-                                  : 'DISCONNECTED',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: manager.connectionState == TvConnectionState.connected
-                                      ? AppTheme.success
-                                      : AppTheme.error,
-                                  letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  // Terminal Console Toggle
-                  IconButton(
-                    icon: Icon(
-                      Icons.terminal,
-                      color: _showConsole ? AppTheme.primary : Colors.white54,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _showConsole = !_showConsole;
-                      });
-                    },
                   ),
                 ],
               ),
@@ -339,7 +334,7 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                       } else if (tab == 'cast') {
                         return _buildCastingHub();
                       } else {
-                        return _buildKeyboardInput();
+                        return _buildSettingsPanel();
                       }
                     }).toList(),
                   ),
@@ -371,31 +366,48 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             _tabController.animateTo(index);
           },
           backgroundColor: AppTheme.surface,
-          selectedItemColor: AppTheme.primary,
+          selectedItemColor: Colors.white,
           unselectedItemColor: Colors.white30,
           type: BottomNavigationBarType.fixed,
           selectedFontSize: 11,
           unselectedFontSize: 11,
           items: _activeTabs.map((tab) {
+            final isSelected = _activeTabs[_currentTabIndex] == tab;
             if (tab == 'control') {
-              return const BottomNavigationBarItem(
-                icon: Icon(Icons.settings_remote),
-                label: 'Control',
+              return BottomNavigationBarItem(
+                icon: Image.asset(
+                  isSelected ? 'assets/tab/remoite s.png' : 'assets/tab/Remote.png',
+                  width: 24,
+                  height: 24,
+                ),
+                label: 'Remote',
               );
             } else if (tab == 'apps') {
-              return const BottomNavigationBarItem(
-                icon: Icon(Icons.apps),
+              return BottomNavigationBarItem(
+                icon: Image.asset(
+                  isSelected ? 'assets/tab/Apps s.png' : 'assets/tab/apps.png',
+                  width: 24,
+                  height: 24,
+                ),
                 label: 'Apps',
               );
             } else if (tab == 'cast') {
-              return const BottomNavigationBarItem(
-                icon: Icon(Icons.cast),
+              return BottomNavigationBarItem(
+                icon: Image.asset(
+                  isSelected ? 'assets/tab/Cast s.png' : 'assets/tab/Cast.png',
+                  width: 24,
+                  height: 24,
+                ),
                 label: 'Cast',
               );
             } else {
-              return const BottomNavigationBarItem(
-                icon: Icon(Icons.keyboard),
-                label: 'Keyboard',
+              return BottomNavigationBarItem(
+                icon: Image.asset(
+                  isSelected ? 'assets/tab/Settings s.png' : 'assets/tab/Settings.png',
+                  width: 24,
+                  height: 24,
+                ),
+                label: 'Settings',
               );
             }
           }).toList(),
@@ -413,145 +425,217 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Power & Mute Top Panel
+          // D-Pad or Trackpad Area
+          Expanded(
+            child: Center(
+              child: _useTrackpad ? _buildSwipeTrackpad() : _buildTactileDpad(),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Circular Buttons Row (Microphone, Mode Toggles, Power)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildRoundButton(
-                icon: Icons.power_settings_new,
-                color: AppTheme.error,
-                onPressed: () => _sendAction(TvKey.power),
+              // Microphone
+              GestureDetector(
+                onTap: () {
+                  HapticFeedback.mediumImpact();
+                },
+                child: Image.asset(
+                  'assets/home/microhphone.png',
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.contain,
+                ),
               ),
-              _buildRoundButton(
-                icon: Icons.volume_mute,
-                color: Colors.white60,
-                onPressed: () => _sendAction(TvKey.mute),
+              // D-pad & Trackpad toggle pill
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E22),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Move Button (Classic D-Pad)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _useTrackpad = false;
+                        });
+                        HapticFeedback.lightImpact();
+                      },
+                      child: Container(
+                        width: 56,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: !_useTrackpad ? const Color(0xFF2D2D33) : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Image.asset(
+                            'assets/home/move.png',
+                            width: 24,
+                            height: 24,
+                            color: !_useTrackpad ? Colors.white : Colors.white54,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Touch Pad Button (Trackpad)
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _useTrackpad = true;
+                        });
+                        HapticFeedback.lightImpact();
+                      },
+                      child: Container(
+                        width: 56,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: _useTrackpad ? const Color(0xFF2D2D33) : Colors.transparent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Image.asset(
+                            'assets/home/touch pad.png',
+                            width: 24,
+                            height: 24,
+                            color: _useTrackpad ? Colors.white : Colors.white54,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Power Button
+              GestureDetector(
+                onTap: () => _sendAction(TvKey.power),
+                child: Image.asset(
+                  'assets/home/power button.png',
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.contain,
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 24),
 
-          // Mode Toggle and D-Pad/Swipe Pad container
+          // Grid Buttons
           Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
+              // Row 1: Back, Home (spans 2), Keyboard
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _useTrackpad = false;
-                      });
-                      HapticFeedback.lightImpact();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: !_useTrackpad ? AppTheme.primary.withOpacity(0.15) : Colors.transparent,
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(20)),
-                        border: Border.all(
-                          color: !_useTrackpad ? AppTheme.primary : AppTheme.border,
-                        ),
-                      ),
-                      child: Text(
-                        'Classic D-Pad',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: !_useTrackpad ? AppTheme.primary : Colors.white54,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
+                  _buildGridButton(
+                    assetPath: 'assets/home/arrow.png',
+                    onPressed: () => _sendAction(TvKey.back),
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _useTrackpad = true;
-                      });
-                      HapticFeedback.lightImpact();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: _useTrackpad ? AppTheme.primary.withOpacity(0.15) : Colors.transparent,
-                        borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
-                        border: Border.all(
-                          color: _useTrackpad ? AppTheme.primary : AppTheme.border,
-                        ),
-                      ),
-                      child: Text(
-                        'Swipe Trackpad',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: _useTrackpad ? AppTheme.primary : Colors.white54,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
+                  const SizedBox(width: 12),
+                  _buildGridButtonExpanded(
+                    assetPath: 'assets/home/home.png',
+                    onPressed: () => _sendAction(TvKey.home),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/keyboard.png',
+                    onPressed: _showKeyboardModal,
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _useTrackpad ? _buildSwipeTrackpad() : _buildTactileDpad(),
-            ],
-          ),
-
-          // Action buttons (Back, Home, Play/Pause)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildActionButton(
-                icon: Icons.arrow_back,
-                label: 'BACK',
-                onPressed: () => _sendAction(TvKey.back),
-              ),
-              _buildActionButton(
-                icon: Icons.play_arrow,
-                label: 'PLAY/PAUSE',
-                onPressed: () => _sendAction(TvKey.playPause),
-              ),
-              _buildActionButton(
-                icon: Icons.home_outlined,
-                label: 'HOME',
-                onPressed: () => _sendAction(TvKey.home),
-              ),
-            ],
-          ),
-
-          // Volume Controls
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.border),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.volume_down, color: Colors.white70),
-                  onPressed: () => _sendAction(TvKey.volumeDown),
-                ),
-                const Text(
-                  'VOLUME',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
-                    color: Colors.white38,
+              const SizedBox(height: 12),
+              // Row 2: Reverse, Play/Pause, Fast Forward, Options/Star
+              Row(
+                children: [
+                  _buildGridButton(
+                    assetPath: 'assets/home/reverse.png',
+                    onPressed: () => _sendAction(TvKey.left),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.volume_up, color: Colors.white70),
-                  onPressed: () => _sendAction(TvKey.volumeUp),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/play.png',
+                    onPressed: () => _sendAction(TvKey.playPause),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/fast.png',
+                    onPressed: () => _sendAction(TvKey.right),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/star.png',
+                    onPressed: () => _sendAction(TvKey.select),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Row 3: Mute, Volume Down, Volume Up, Reload
+              Row(
+                children: [
+                  _buildGridButton(
+                    assetPath: 'assets/home/no sound.png',
+                    onPressed: () => _sendAction(TvKey.mute),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/sound.png',
+                    onPressed: () => _sendAction(TvKey.volumeDown),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/volume up.png',
+                    onPressed: () => _sendAction(TvKey.volumeUp),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildGridButton(
+                    assetPath: 'assets/home/restart.png',
+                    onPressed: () => _sendAction(TvKey.home),
+                  ),
+                ],
+              ),
+            ],
           ),
+          const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGridButton({
+    required String assetPath,
+    required VoidCallback onPressed,
+  }) {
+    return Expanded(
+      flex: 1,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Image.asset(
+          assetPath,
+          height: 60,
+          fit: BoxFit.contain,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridButtonExpanded({
+    required String assetPath,
+    required VoidCallback onPressed,
+  }) {
+    return Expanded(
+      flex: 2,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Image.asset(
+          assetPath,
+          height: 60,
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }
@@ -1049,6 +1133,401 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     );
   }
 
+  // Tab 4: Settings Panel
+  Widget _buildSettingsPanel() {
+    final manager = widget.manager;
+    final device = manager.currentDevice;
+    final connectionStateText = manager.connectionState == TvConnectionState.connected
+        ? 'Connected'
+        : manager.connectionState == TvConnectionState.connecting
+            ? 'Connecting...'
+            : manager.connectionState == TvConnectionState.pairing
+                ? 'Pairing...'
+                : 'Disconnected';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'SETTINGS',
+            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 14, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          // Connection Card
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceElevated,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      device?.brand ?? 'No Device Connected',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: manager.connectionState == TvConnectionState.connected
+                            ? AppTheme.success.withOpacity(0.15)
+                            : AppTheme.error.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        connectionStateText.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: manager.connectionState == TvConnectionState.connected
+                              ? AppTheme.success
+                              : AppTheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (device != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Device Name: ${device.name}',
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'IP Address: ${device.ipAddress}',
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Port: ${device.port}',
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Actions List
+          const Text(
+            'GENERAL',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              color: Colors.white30,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildSettingsItem(
+            title: 'Haptic Feedback',
+            subtitle: 'Vibrate on remote control button presses',
+            trailing: Switch(
+              value: true,
+              onChanged: (val) {},
+              activeColor: AppTheme.primary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'DEVICE MANAGEMENT',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              color: Colors.white30,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildSettingsItem(
+            title: 'Switch TV Brand',
+            subtitle: 'Disconnect and choose another TV manufacturer',
+            icon: Icons.tv,
+            onTap: _showDisconnectConfirmation,
+          ),
+          const SizedBox(height: 8),
+          _buildSettingsItem(
+            title: 'Disconnect Device',
+            subtitle: 'End current TV control session',
+            icon: Icons.link_off,
+            onTap: _showDisconnectConfirmation,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'SUPPORT & ABOUT',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              color: Colors.white30,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildSettingsItem(
+            title: 'Rate App',
+            subtitle: 'Support development by sharing feedback',
+            icon: Icons.star_outline,
+            onTap: () {
+              Get.to(() => const Ratingscreen());
+            },
+          ),
+          const SizedBox(height: 8),
+          _buildSettingsItem(
+            title: 'App Version',
+            subtitle: '1.0.0 (Build 22)',
+            trailing: const Text(
+              'LATEST',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.white30,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsItem({
+    required String title,
+    required String subtitle,
+    IconData? icon,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) {
+    return Card(
+      color: AppTheme.surfaceElevated,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          child: Row(
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: AppTheme.primary, size: 20),
+                const SizedBox(width: 16),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white54,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) trailing,
+              if (onTap != null && trailing == null)
+                const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white24,
+                  size: 20,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showKeyboardModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF17171A),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppTheme.border),
+              ),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'TV KEYBOARD',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white54),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _keyboardController,
+                    autofocus: true,
+                    style: const TextStyle(fontSize: 16, color: Colors.white),
+                    onChanged: (text) {
+                      if (_sendCharByChar && text.isNotEmpty) {
+                        widget.manager.sendText(text.substring(text.length - 1));
+                      }
+                    },
+                    onSubmitted: (text) {
+                      _onKeyboardSubmit(text);
+                      Navigator.pop(context);
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Type here...',
+                      hintStyle: const TextStyle(color: Colors.white30),
+                      filled: true,
+                      fillColor: const Color(0xFF222226),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.white30),
+                        onPressed: () => _keyboardController.clear(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Send character-by-character',
+                        style: TextStyle(fontSize: 12, color: Colors.white54),
+                      ),
+                      Switch(
+                        value: _sendCharByChar,
+                        onChanged: (val) {
+                          setModalState(() {
+                            _sendCharByChar = val;
+                          });
+                          setState(() {
+                            _sendCharByChar = val;
+                          });
+                        },
+                        activeColor: AppTheme.primary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildModalKeyboardActionBtn(
+                        label: 'BACKSPACE',
+                        icon: Icons.backspace,
+                        onPressed: () => _sendAction(TvKey.back),
+                      ),
+                      _buildModalKeyboardActionBtn(
+                        label: 'ENTER',
+                        icon: Icons.subdirectory_arrow_left,
+                        onPressed: () {
+                          if (!_sendCharByChar) {
+                            _onKeyboardSubmit(_keyboardController.text);
+                          } else {
+                            _sendAction(TvKey.select);
+                          }
+                          Navigator.pop(context);
+                        },
+                      ),
+                      _buildModalKeyboardActionBtn(
+                        label: 'SPACE',
+                        icon: Icons.space_bar,
+                        onPressed: () {
+                          if (_sendCharByChar) {
+                            widget.manager.sendText(' ');
+                          } else {
+                            _keyboardController.text += ' ';
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildModalKeyboardActionBtn({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Expanded(
+      child: Card(
+        color: const Color(0xFF222226),
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: AppTheme.primary, size: 20),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white54),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // --- BRAND NOT SUPPORTED OVERLAY ---
   Widget _buildBrandNotSupportedOverlay(String featureName) {
     final brand = widget.manager.currentDevice?.brand ?? 'This device';
@@ -1133,95 +1612,162 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       ],
     );
   }
-
   Widget _buildTactileDpad() {
     return Container(
-      width: 220,
-      height: 220,
+      width: 240,
+      height: 240,
       decoration: BoxDecoration(
-        color: AppTheme.surface,
         shape: BoxShape.circle,
-        border: Border.all(color: AppTheme.border, width: 2),
+        gradient: LinearGradient(
+          begin: AlignmentGeometry.topCenter,
+          end: AlignmentGeometry.bottomCenter,
+          //center: const Alignment(-0.4, -0.5),
+          //radius: 1.0,
+          colors: const [
+            Color(0xFF794DEB),
+            Color(0xFF512CB8),
+          ],
+          //stops: const [0.0, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
-      child: Stack(
-        children: [
-          // Center Select Button
-          Align(
-            alignment: Alignment.center,
-            child: GestureDetector(
-              onTap: () => _sendAction(TvKey.select),
-              child: Container(
-                width: 74,
-                height: 74,
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceElevated,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.border, width: 2),
-                  boxShadow: AppTheme.glowShadow(AppTheme.primary),
-                ),
-                child: const Center(
-                  child: Text(
-                    'OK',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                      color: AppTheme.primary,
-                      letterSpacing: 0.5,
+      child: ClipOval(
+        child: Stack(
+          children: [
+            // Faint overall softening
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.4, -0.5),
+                      radius: 1.0,
+                      colors: [
+                        Colors.white.withOpacity(0.05),
+                        Colors.white.withOpacity(0.0),
+                      ],
+                      stops: const [0.0, 0.6],
                     ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          // D-Pad Up
-          Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: _buildDpadDirection(
-                icon: Icons.keyboard_arrow_up,
-                onPressed: () => _sendAction(TvKey.up),
+            // Tight dark crescent at bottom edge
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.44),
+                        Colors.black.withOpacity(0.0),
+                      ],
+                      stops: const [0.0, 0.07],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
 
-          // D-Pad Down
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: _buildDpadDirection(
-                icon: Icons.keyboard_arrow_down,
-                onPressed: () => _sendAction(TvKey.down),
+            // Center Select Button (OK) — SIZE REDUCED
+            Align(
+              alignment: Alignment.center,
+              child: GestureDetector(
+                onTap: () {
+                  _sendAction(TvKey.select);
+                  HapticFeedback.mediumImpact();
+                },
+                child: Container(
+                  width: 110,  // was 150
+                  height: 110, // was 150
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: AlignmentGeometry.topCenter,
+                      end: AlignmentGeometry.bottomCenter,
+                      //center: const Alignment(-0.4, -0.5),
+                      //radius: 1.0,
+                      colors: const [
+                        Color(0xFF794DEB),
+                        Color(0xFF512CB8),
+                      ],
+                      //stops: const [0.0, 1.0],
+                    ),
+                    border: Border.all(color: Colors.black, width: 2.5),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'OK',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16, // slightly smaller to match smaller button
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
 
-          // D-Pad Left
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8.0),
-              child: _buildDpadDirection(
-                icon: Icons.keyboard_arrow_left,
-                onPressed: () => _sendAction(TvKey.left),
+            // D-Pad Up
+            Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 20.0), // was 28.0
+                child: _buildDpadDirection(
+                  icon: Icons.keyboard_arrow_up_rounded,
+                  onPressed: () => _sendAction(TvKey.up),
+                ),
               ),
             ),
-          ),
 
-          // D-Pad Right
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: _buildDpadDirection(
-                icon: Icons.keyboard_arrow_right,
-                onPressed: () => _sendAction(TvKey.right),
+            // D-Pad Down
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 20.0), // was 28.0
+                child: _buildDpadDirection(
+                  icon: Icons.keyboard_arrow_down_rounded,
+                  onPressed: () => _sendAction(TvKey.down),
+                ),
               ),
             ),
-          ),
-        ],
+
+            // D-Pad Left
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 20.0), // was 28.0
+                child: _buildDpadDirection(
+                  icon: Icons.keyboard_arrow_left_rounded,
+                  onPressed: () => _sendAction(TvKey.left),
+                ),
+              ),
+            ),
+
+            // D-Pad Right
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 20.0), // was 28.0
+                child: _buildDpadDirection(
+                  icon: Icons.keyboard_arrow_right_rounded,
+                  onPressed: () => _sendAction(TvKey.right),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1233,16 +1779,17 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: 54,
-        height: 54,
+        width: 40,  // was 54
+        height: 40, // was 54
+        alignment: Alignment.center,
         decoration: const BoxDecoration(
           color: Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: Colors.white54,
-          size: 32,
+          color: Colors.white,
+          size: 32, // was 40
         ),
       ),
     );
@@ -1357,46 +1904,19 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
         HapticFeedback.mediumImpact();
       },
       child: Container(
-        width: 220,
-        height: 220,
+        width: double.infinity,
+        height: 260,
         decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.border, width: 2),
-          boxShadow: AppTheme.glowShadow(AppTheme.primary.withOpacity(0.3)),
+          color: const Color(0xFF1E1E22),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: AppTheme.border, width: 1),
         ),
         child: Stack(
           children: [
             Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.swipe,
-                    color: AppTheme.primary.withOpacity(0.4),
-                    size: 32,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'SWIPE TO NAVIGATE',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white.withOpacity(0.3),
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'TAP TO SELECT',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primary.withOpacity(0.5),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              child: CustomPaint(
+                size: const Size(200, 200),
+                painter: CrosshairPainter(),
               ),
             ),
           ],
@@ -1404,4 +1924,34 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
       ),
     );
   }
+}
+
+class CrosshairPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.08)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    const dashWidth = 4.0;
+    const dashSpace = 4.0;
+
+    // Draw horizontal dotted line
+    double startX = 0;
+    while (startX < size.width) {
+      canvas.drawLine(Offset(startX, size.height / 2), Offset(startX + dashWidth, size.height / 2), paint);
+      startX += dashWidth + dashSpace;
+    }
+
+    // Draw vertical dotted line
+    double startY = 0;
+    while (startY < size.height) {
+      canvas.drawLine(Offset(size.width / 2, startY), Offset(size.width / 2, startY + dashWidth), paint);
+      startY += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

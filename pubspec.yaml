@@ -41,7 +41,7 @@ dependencies:
   uuid: ^4.3.3
   get: ^4.6.6
   video_player: ^2.11.1
-
+  flutter_inset_shadow: ^2.0.0
 
 dev_dependencies:
   flutter_test:
@@ -53,6 +53,7 @@ flutter:
 
   uses-material-design: true
   assets:
+    - assets/tab/
     - assets/tv images/
     - assets/apps/
     - assets/casting/

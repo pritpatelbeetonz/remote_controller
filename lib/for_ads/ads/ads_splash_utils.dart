@@ -251,8 +251,8 @@ class AdsSplashUtils {
           debugPrint('🆕 [AdsSplash] First launch detected → loading survey native ads.');
           if(AdsVariable.showSurveyScreen){
             debugPrint("======Show surveryScreen is true======");
-            loadPreLoadLanguageNativeAds1();
-            loadPreLoadLanguageNativeAds2();
+            // loadPreLoadLanguageNativeAds1();
+            // loadPreLoadLanguageNativeAds2();
           }
         } else {
           debugPrint('🔁 [AdsSplash] Returning user → skipping survey native ads (not needed).');
@@ -370,69 +370,69 @@ Future<void> setupFbAdsId() async {
   showLog("Call 3");
 }
 
-Future<void> loadPreLoadLanguageNativeAds1() async {
-  showLog("Call Method loadPreLoadLanguageNativeAds1");
-  AdsVariable.nativeBigAdSurvey1 = await AdsLoadUtil().loadSurveyBigNative1(
-    AdsVariable.bigNativeSurveyAdIOS1,
-    true,
-  );
-  showLog(
-    "AdsVariable.bigNativeSurveyAdIOS1 --->${AdsVariable.bigNativeSurveyAdIOS1}",
-  );
-  showLog(
-    "AdsVariable.nativeBigAdSurvey1 ----===>${AdsVariable.nativeBigAdSurvey1?.adUnitId ?? ''}",
-  );
-  // showToast("Big Native 1 load");
-}
+// Future<void> loadPreLoadLanguageNativeAds1() async {
+//   showLog("Call Method loadPreLoadLanguageNativeAds1");
+//   AdsVariable.nativeBigAdSurvey1 = await AdsLoadUtil().loadSurveyBigNative1(
+//     AdsVariable.bigNativeSurveyAdIOS1,
+//     true,
+//   );
+//   showLog(
+//     "AdsVariable.bigNativeSurveyAdIOS1 --->${AdsVariable.bigNativeSurveyAdIOS1}",
+//   );
+//   showLog(
+//     "AdsVariable.nativeBigAdSurvey1 ----===>${AdsVariable.nativeBigAdSurvey1?.adUnitId ?? ''}",
+//   );
+//   // showToast("Big Native 1 load");
+// }
 
-Future<void> loadPreLoadLanguageNativeAds2() async {
-  showLog("Call Method loadPreLoadLanguageNativeAds2");
-  AdsVariable.nativeBigAdSurvey2 = await AdsLoadUtil().loadSurveyBigNative2(
-    AdsVariable.bigNativeSurveyAdIOS2,
-    true,
-  );
-  showLog(
-    "AdsVariable.bigNativeSurveyAdIOS2 --->${AdsVariable.bigNativeSurveyAdIOS2}",
-  );
-  showLog(
-    "AdsVariable.nativeBigAdSurvey2 ----===>${AdsVariable.nativeBigAdSurvey2?.adUnitId ?? ''}",
-  );
-  // showToast("Big Native 2 load");
-}
+// Future<void> loadPreLoadLanguageNativeAds2() async {
+//   showLog("Call Method loadPreLoadLanguageNativeAds2");
+//   AdsVariable.nativeBigAdSurvey2 = await AdsLoadUtil().loadSurveyBigNative2(
+//     AdsVariable.bigNativeSurveyAdIOS2,
+//     true,
+//   );
+//   showLog(
+//     "AdsVariable.bigNativeSurveyAdIOS2 --->${AdsVariable.bigNativeSurveyAdIOS2}",
+//   );
+//   showLog(
+//     "AdsVariable.nativeBigAdSurvey2 ----===>${AdsVariable.nativeBigAdSurvey2?.adUnitId ?? ''}",
+//   );
+//   // showToast("Big Native 2 load");
+// }
 
 void showToast(String msg) {
   Fluttertoast.showToast(msg: msg);
 }
 
-void loadPreLoadIntroFullNativeAds() async {
-  showLog("Call Method loadPreLoadIntroFullNativeAds ");
-  AdsVariable.fullNativeAdIntro = await AdsLoadUtil().loadIntroFullNative(
-    AdsVariable.fullNativeIntroAdIOS,
-    false,
-  );
-  showLog(
-    "AdsVariable.fullNativeIntroAdIOS --->${AdsVariable.fullNativeIntroAdIOS}",
-  );
-  showLog(
-    "AdsVariable.fullNativeAdIntro ----===>${AdsVariable.fullNativeAdIntro?.adUnitId ?? ''}",
-  );
-  // showToast("Full Native load");
-}
+// void loadPreLoadIntroFullNativeAds() async {
+//   showLog("Call Method loadPreLoadIntroFullNativeAds ");
+//   AdsVariable.fullNativeAdIntro = await AdsLoadUtil().loadIntroFullNative(
+//     AdsVariable.fullNativeIntroAdIOS,
+//     false,
+//   );
+//   showLog(
+//     "AdsVariable.fullNativeIntroAdIOS --->${AdsVariable.fullNativeIntroAdIOS}",
+//   );
+//   showLog(
+//     "AdsVariable.fullNativeAdIntro ----===>${AdsVariable.fullNativeAdIntro?.adUnitId ?? ''}",
+//   );
+//   // showToast("Full Native load");
+// }
 
-void loadSmallThirdIntroNativeAds() async {
-  showLog("Call Method loadPreLoadIntroFullNativeAds ");
-  AdsVariable.smallThirdNativeAdIntro = await AdsLoadUtil()
-      .loadSmallThirdIntroNative(
-        AdsVariable.smallThirdIntroNativeIntroAdIOS,
-        true,
-      );
-  showLog(
-    "AdsVariable.fullNativeIntroAdIOS --->${AdsVariable.smallThirdIntroNativeIntroAdIOS}",
-  );
-  showLog(
-    "AdsVariable.fullNativeAdIntro ----===>${AdsVariable.smallThirdNativeAdIntro?.adUnitId ?? ''}",
-  );
-}
+// void loadSmallThirdIntroNativeAds() async {
+//   showLog("Call Method loadPreLoadIntroFullNativeAds ");
+//   AdsVariable.smallThirdNativeAdIntro = await AdsLoadUtil()
+//       .loadSmallThirdIntroNative(
+//         AdsVariable.smallThirdIntroNativeIntroAdIOS,
+//         true,
+//       );
+//   showLog(
+//     "AdsVariable.fullNativeIntroAdIOS --->${AdsVariable.smallThirdIntroNativeIntroAdIOS}",
+//   );
+//   showLog(
+//     "AdsVariable.fullNativeAdIntro ----===>${AdsVariable.smallThirdNativeAdIntro?.adUnitId ?? ''}",
+//   );
+// }
 
 /// GDPR Implementation methods : initializeGDPR, changePrivacyPreferences, loadConsentForm, initializeMobileAds
 
