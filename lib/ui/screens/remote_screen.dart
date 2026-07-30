@@ -11,6 +11,7 @@ import '../widgets/log_console_drawer.dart';
 import 'discovery_screen.dart';
 import 'brand_selection_screen.dart';
 import '../../RatingScreen.dart';
+import '../../PremiumCreditView.dart';
 import 'package:flutter_inset_shadow/flutter_inset_shadow.dart' as inset;
 
 class RemoteScreen extends StatefulWidget {
@@ -777,203 +778,254 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Active session card
-          if (_isCasting)
-            Card(
-              color: AppTheme.surfaceElevated,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppTheme.success, width: 1.5),
+          if (_isCasting) ...[
+            Container(
+              padding: const EdgeInsets.all(18.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A382A).withOpacity(0.4),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.success.withOpacity(0.4), width: 1.5),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    const Icon(Icons.play_circle_filled, color: AppTheme.success, size: 36),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'CURRENTLY CASTING',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.success,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _activeCastName ?? 'Web Media Stream',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: _stopCast,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.error,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text('STOP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    )
-                  ],
-                ),
-              ),
-            ),
-          const SizedBox(height: 12),
-
-          // Casting URL input card
-          Card(
-            color: AppTheme.surface,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Row(
                 children: [
-                  const Text(
-                    'CAST WEB LINK',
-                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _castUrlController,
-                    style: const TextStyle(fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'http://example.com/movie.mp4',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Cast Type selection
-                  Row(
-                    children: [
-                      const Text('Type:', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _selectedCastType,
-                          dropdownColor: AppTheme.surfaceElevated,
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
-                          decoration: const InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                            border: InputBorder.none,
+                  const Icon(Icons.play_circle_filled_rounded, color: AppTheme.success, size: 36),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'CURRENTLY CASTING',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.success,
+                            letterSpacing: 1.2,
                           ),
-                          items: const [
-                            DropdownMenuItem(value: 'v', child: Text('🎬 Video (MP4/MOV)')),
-                            DropdownMenuItem(value: 'p', child: Text('🖼️ Photo (JPG/PNG)')),
-                            DropdownMenuItem(value: 'm', child: Text('🎵 Music (MP3/WAV)')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                _selectedCastType = val;
-                              });
-                            }
-                          },
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      final url = _castUrlController.text.trim();
-                      if (url.isEmpty) return;
-                      _startCast(url, _selectedCastType, name: url.split('/').last);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.black,
-                      elevation: 5,
-                      shadowColor: AppTheme.primary.withOpacity(0.4),
+                        const SizedBox(height: 4),
+                        Text(
+                          _activeCastName ?? 'Web Media Stream',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    child: const Text('CAST MEDIA LINK'),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _stopCast,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.error,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text('STOP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                   )
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+          ],
+
+          // Casting URL input card
+          Container(
+            padding: const EdgeInsets.all(22.0),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.0),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Image.asset(
+                      'assets/tab/Cast.png',
+                      width: 20,
+                      height: 20,
+                      color: const Color(0xFF794DEB),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'CAST WEB LINK',
+                      style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 13, color: Colors.white70),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: _castUrlController,
+                  style: const TextStyle(fontSize: 14, color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Enter media URL here...',
+                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 14),
+                    filled: true,
+                    fillColor: const Color(0xFF16161A),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: const BorderSide(color: Color(0xFF794DEB), width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Cast Type selection
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16161A),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedCastType,
+                      dropdownColor: const Color(0xFF1B1B1F),
+                      style: const TextStyle(fontSize: 14, color: Colors.white, fontFamily: 'SF Pro Display'),
+                      decoration: const InputDecoration(
+                        labelText: 'Select Media Type',
+                        labelStyle: TextStyle(color: Colors.white30, fontSize: 12),
+                        border: InputBorder.none,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'v', child: Text('🎬  Video (MP4, MOV)')),
+                        DropdownMenuItem(value: 'p', child: Text('🖼️  Photo (JPG, PNG)')),
+                        DropdownMenuItem(value: 'm', child: Text('🎵  Music (MP3, WAV)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedCastType = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () {
+                    final url = _castUrlController.text.trim();
+                    if (url.isEmpty) return;
+                    _startCast(url, _selectedCastType, name: url.split('/').last);
+                  },
+                  child: Container(
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0xFF794DEB),
+                          Color(0xFF512CB8),
+                        ],
+                      ),
+                    ),
+                    child: const Text(
+                      'Cast Media Link',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                )
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
           // Casting Local files card
-          Card(
-            color: AppTheme.surface,
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'LOCAL FILE STREAMING',
-                    style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Select and stream local media files directly from your mobile device to the TV.',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildLocalCastOption(
-                          icon: Icons.image,
-                          label: 'Image',
-                          color: AppTheme.primary,
-                          onPressed: () => _pickAndCastFile('p'),
-                        ),
+          Container(
+            padding: const EdgeInsets.all(22.0),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.08), width: 1.0),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.folder_shared_rounded, color: Color(0xFF794DEB), size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'LOCAL FILE STREAMING',
+                      style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 13, color: Colors.white70),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Stream local media files directly from your mobile device to the TV screen.',
+                  style: TextStyle(fontSize: 13, color: Colors.white54, height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildLocalCastOption(
+                        icon: Icons.image_rounded,
+                        label: 'Image',
+                        color: const Color(0xFF794DEB),
+                        onPressed: () => _pickAndCastFile('p'),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildLocalCastOption(
-                          icon: Icons.movie,
-                          label: 'Video',
-                          color: AppTheme.secondary,
-                          onPressed: () => _pickAndCastFile('v'),
-                        ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildLocalCastOption(
+                        icon: Icons.movie_creation_rounded,
+                        label: 'Video',
+                        color: const Color(0xFF794DEB),
+                        onPressed: () => _pickAndCastFile('v'),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _buildLocalCastOption(
-                          icon: Icons.audiotrack,
-                          label: 'Audio',
-                          color: AppTheme.success,
-                          onPressed: () => _pickAndCastFile('m'),
-                        ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _buildLocalCastOption(
+                        icon: Icons.audiotrack_rounded,
+                        label: 'Audio',
+                        color: const Color(0xFF794DEB),
+                        onPressed: () => _pickAndCastFile('m'),
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
 
           // Quick samples section
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               'QUICK WEB SAMPLE STREAMS',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white30, letterSpacing: 0.5),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white30, letterSpacing: 1.0),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildSampleMediaTile(
             title: 'Sintel Open Movie Video',
             subtitle: 'MP4 Video Stream (1080p)',
@@ -1003,13 +1055,44 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     required String url,
     required String type,
   }) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: AppTheme.surfaceElevated.withOpacity(0.5),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.0),
+      ),
       child: ListTile(
-        title: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white54)),
-        trailing: const Icon(Icons.cast, color: AppTheme.primary, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: const Color(0xFF794DEB).withOpacity(0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            type == 'v'
+                ? Icons.movie_creation_rounded
+                : type == 'p'
+                    ? Icons.image_rounded
+                    : Icons.audiotrack_rounded,
+            color: const Color(0xFF794DEB),
+            size: 20,
+          ),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4.0),
+          child: Text(
+            subtitle,
+            style: const TextStyle(fontSize: 11, color: Colors.white38),
+          ),
+        ),
+        trailing: const Icon(Icons.cast_connected_rounded, color: Color(0xFF794DEB), size: 20),
         onTap: () {
           _castUrlController.text = url;
           setState(() {
@@ -1158,164 +1241,168 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
 
   // Tab 4: Settings Panel
   Widget _buildSettingsPanel() {
-    final manager = widget.manager;
-    final device = manager.currentDevice;
-    final connectionStateText = manager.connectionState == TvConnectionState.connected
-        ? 'Connected'
-        : manager.connectionState == TvConnectionState.connecting
-            ? 'Connecting...'
-            : manager.connectionState == TvConnectionState.pairing
-                ? 'Pairing...'
-                : 'Disconnected';
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'SETTINGS',
-            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0, fontSize: 14, color: Colors.white),
+            'Settings',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              fontFamily: 'SF Pro Display',
+            ),
           ),
-          const SizedBox(height: 16),
-          // Connection Card
+          const SizedBox(height: 20),
+
+          // Banner: Unlock the Full Experience
+          GestureDetector(
+            onTap: () {
+              Get.to(() => PremiumCreditView(onboarding: false, onDone: (){},));
+            },
+            child: Container(
+              height: 90,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                image: const DecorationImage(
+                  image: AssetImage('assets/settting/bg.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  Image.asset(
+                    'assets/settting/ic.png',
+                    width: 32,
+                    height: 32,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Unlock the Full Experience',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Access all remote features with faster, smoother & unlimited connectivity.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                            fontFamily: 'SF Pro Display',
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // General Section
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
             decoration: BoxDecoration(
-              color: AppTheme.surfaceElevated,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTheme.border),
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.0),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      device?.brand ?? 'No Device Connected',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: manager.connectionState == TvConnectionState.connected
-                            ? AppTheme.success.withOpacity(0.15)
-                            : AppTheme.error.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        connectionStateText.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: manager.connectionState == TvConnectionState.connected
-                              ? AppTheme.success
-                              : AppTheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
+                const Text(
+                  'General',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
+                    fontFamily: 'SF Pro Display',
+                  ),
                 ),
-                if (device != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    'Device Name: ${device.name}',
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'IP Address: ${device.ipAddress}',
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Port: ${device.port}',
-                    style: const TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
-                ],
+                const SizedBox(height: 12),
+                _buildNewSettingsItem(
+                  iconPath: 'assets/settting/Contact us.png',
+                  title: 'Contact Us',
+                  onTap: () {
+                    // Action for Contact Us
+                  },
+                ),
+                _buildNewSettingsItem(
+                  iconPath: 'assets/settting/privacy policy.png',
+                  title: 'Privacy Policy',
+                  onTap: () {
+                    // Action for Privacy Policy
+                  },
+                ),
+                _buildNewSettingsItem(
+                  iconPath: 'assets/settting/share app.png',
+                  title: 'Share App',
+                  onTap: () {
+                    // Action for Share App
+                  },
+                ),
+                _buildNewSettingsItem(
+                  iconPath: 'assets/settting/Rate Us.png',
+                  title: 'Rate Us',
+                  onTap: () {
+                    Get.to(() => const Ratingscreen());
+                  },
+                ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          // Actions List
-          const Text(
-            'GENERAL',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-              color: Colors.white30,
-              letterSpacing: 0.5,
+
+          // Advance Section
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.0),
             ),
-          ),
-          const SizedBox(height: 8),
-          _buildSettingsItem(
-            title: 'Haptic Feedback',
-            subtitle: 'Vibrate on remote control button presses',
-            trailing: Switch(
-              value: true,
-              onChanged: (val) {},
-              activeColor: AppTheme.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'DEVICE MANAGEMENT',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-              color: Colors.white30,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildSettingsItem(
-            title: 'Switch TV Brand',
-            subtitle: 'Disconnect and choose another TV manufacturer',
-            icon: Icons.tv,
-            onTap: _showDisconnectConfirmation,
-          ),
-          const SizedBox(height: 8),
-          _buildSettingsItem(
-            title: 'Disconnect Device',
-            subtitle: 'End current TV control session',
-            icon: Icons.link_off,
-            onTap: _showDisconnectConfirmation,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'SUPPORT & ABOUT',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 11,
-              color: Colors.white30,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildSettingsItem(
-            title: 'Rate App',
-            subtitle: 'Support development by sharing feedback',
-            icon: Icons.star_outline,
-            onTap: () {
-              Get.to(() => const Ratingscreen());
-            },
-          ),
-          const SizedBox(height: 8),
-          _buildSettingsItem(
-            title: 'App Version',
-            subtitle: '1.0.0 (Build 22)',
-            trailing: const Text(
-              'LATEST',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.white30,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Advance',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
+                    fontFamily: 'SF Pro Display',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildNewSettingsItem(
+                  iconPath: 'assets/settting/Feedback.png',
+                  title: 'Feedback',
+                  onTap: () {
+                    // Action for Feedback
+                  },
+                ),
+                _buildNewSettingsItem(
+                  iconPath: 'assets/settting/Request a Feature.png',
+                  title: 'Request A Feature',
+                  onTap: () {
+                    // Action for Request A Feature
+                  },
+                ),
+              ],
             ),
           ),
         ],
@@ -1323,60 +1410,41 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildSettingsItem({
+  Widget _buildNewSettingsItem({
+    required String iconPath,
     required String title,
-    required String subtitle,
-    IconData? icon,
-    Widget? trailing,
-    VoidCallback? onTap,
+    required VoidCallback onTap,
   }) {
-    return Card(
-      color: AppTheme.surfaceElevated,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: Row(
-            children: [
-              if (icon != null) ...[
-                Icon(icon, color: AppTheme.primary, size: 20),
-                const SizedBox(width: 16),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 14.0),
+        child: Row(
+          children: [
+            Image.asset(
+              iconPath,
+              width: 24,
+              height: 24,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                  fontFamily: 'SF Pro Display',
                 ),
               ),
-              if (trailing != null) trailing,
-              if (onTap != null && trailing == null)
-                const Icon(
-                  Icons.chevron_right,
-                  color: Colors.white24,
-                  size: 20,
-                ),
-            ],
-          ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white30,
+              size: 20,
+            ),
+          ],
         ),
       ),
     );
@@ -1879,24 +1947,32 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     required VoidCallback onPressed,
   }) {
     return Container(
-      height: 76,
+      height: 84,
       decoration: BoxDecoration(
-        color: AppTheme.surfaceElevated,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.border),
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.0),
       ),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 6),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 8),
             Text(
               label,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: Colors.white70,
               ),
