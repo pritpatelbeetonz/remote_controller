@@ -50,7 +50,7 @@ class SplashScreenState extends State<SplashScreen> {
     bool isFirstLaunch = SharedPrefService.getIsFirstTime();
     if (isFirstLaunch) {
       AdsVariable.showSurveyScreen
-          ? Get.off(SurveyForm())
+          ? Get.off(WelPageview())
           : Get.off(WelPageview()); //SurveyForm()
     } else {
       if (AdsVariable.isPurchase) {
