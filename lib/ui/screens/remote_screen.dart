@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -249,168 +250,190 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     final deviceName = manager.currentDevice?.name ?? 'Universal TV';
 
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top App Bar/Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onLongPress: () {
-                        setState(() {
-                          _showConsole = !_showConsole;
-                        });
-                      },
-                      child: Text(
-                        manager.connectionState == TvConnectionState.connected
-                            ? deviceName
-                            : 'TV is not connected',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'SF Pro Display',
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Get.offAll(() => BrandSelectionScreen(manager: manager));
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E22),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.border),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Image.asset(
-                            'assets/home/connect.png',
-                            width: 18,
-                            height: 18,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            manager.connectionState == TvConnectionState.connected
-                                ? 'Connected'
-                                : 'Connect',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'SF Pro Display',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Tab Views
-            Expanded(
-              child: Stack(
-                children: [
-                  TabBarView(
-                    controller: _tabController,
-                    physics: const NeverScrollableScrollPhysics(), // tab changes controlled by nav bar
-                    children: _activeTabs.map((tab) {
-                      if (tab == 'control') {
-                        return _buildRemotePanel();
-                      } else if (tab == 'apps') {
-                        return _buildAppLauncher();
-                      } else if (tab == 'cast') {
-                        return _buildCastingHub();
-                      } else {
-                        return _buildSettingsPanel();
-                      }
-                    }).toList(),
-                  ),
-                  if (_showConsole)
-                    Positioned.fill(
-                      child: LogConsoleDrawer(
-                        manager: manager,
-                        onClose: () {
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/home/bg.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Top App Bar/Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onLongPress: () {
                           setState(() {
-                            _showConsole = false;
+                            _showConsole = !_showConsole;
                           });
                         },
+                        child: Text(
+                          manager.connectionState == TvConnectionState.connected
+                              ? deviceName
+                              : 'TV is not connected',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
+                    GestureDetector(
+                      onTap: () {
+                        Get.offAll(() => BrandSelectionScreen(manager: manager));
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E22),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppTheme.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Image.asset(
+                              'assets/home/connect.png',
+                              width: 18,
+                              height: 18,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              manager.connectionState == TvConnectionState.connected
+                                  ? 'Connected'
+                                  : 'Connect',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'SF Pro Display',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+  
+              // Tab Views
+              Expanded(
+                child: Stack(
+                  children: [
+                    TabBarView(
+                      controller: _tabController,
+                      physics: const NeverScrollableScrollPhysics(), // tab changes controlled by nav bar
+                      children: _activeTabs.map((tab) {
+                        if (tab == 'control') {
+                          return _buildRemotePanel();
+                        } else if (tab == 'apps') {
+                          return _buildAppLauncher();
+                        } else if (tab == 'cast') {
+                          return _buildCastingHub();
+                        } else {
+                          return _buildSettingsPanel();
+                        }
+                      }).toList(),
+                    ),
+                    if (_showConsole)
+                      Positioned.fill(
+                        child: LogConsoleDrawer(
+                          manager: manager,
+                          onClose: () {
+                            setState(() {
+                              _showConsole = false;
+                            });
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: ClipRect(
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 50.0, sigmaY: 50.0),
+          child: Container(
+            decoration: BoxDecoration(
+              border: const Border(top: BorderSide(color: Colors.transparent, width: 0)),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xFF1B1F23).withOpacity(0.8),
+                  const Color(0xFF11151A).withOpacity(0.8),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: AppTheme.border, width: 1)),
-          color: AppTheme.surface,
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentTabIndex,
-          onTap: (index) {
-            _tabController.animateTo(index);
-          },
-          backgroundColor: AppTheme.surface,
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white30,
-          type: BottomNavigationBarType.fixed,
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
-          items: _activeTabs.map((tab) {
-            final isSelected = _activeTabs[_currentTabIndex] == tab;
-            if (tab == 'control') {
-              return BottomNavigationBarItem(
-                icon: Image.asset(
-                  isSelected ? 'assets/tab/remoite s.png' : 'assets/tab/Remote.png',
-                  width: 24,
-                  height: 24,
-                ),
-                label: 'Remote',
-              );
-            } else if (tab == 'apps') {
-              return BottomNavigationBarItem(
-                icon: Image.asset(
-                  isSelected ? 'assets/tab/Apps s.png' : 'assets/tab/apps.png',
-                  width: 24,
-                  height: 24,
-                ),
-                label: 'Apps',
-              );
-            } else if (tab == 'cast') {
-              return BottomNavigationBarItem(
-                icon: Image.asset(
-                  isSelected ? 'assets/tab/Cast s.png' : 'assets/tab/Cast.png',
-                  width: 24,
-                  height: 24,
-                ),
-                label: 'Cast',
-              );
-            } else {
-              return BottomNavigationBarItem(
-                icon: Image.asset(
-                  isSelected ? 'assets/tab/Settings s.png' : 'assets/tab/Settings.png',
-                  width: 24,
-                  height: 24,
-                ),
-                label: 'Settings',
-              );
-            }
-          }).toList(),
+            child: BottomNavigationBar(
+              currentIndex: _currentTabIndex,
+              onTap: (index) {
+                _tabController.animateTo(index);
+              },
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              selectedItemColor: Colors.white,
+              unselectedItemColor: Colors.white30,
+              type: BottomNavigationBarType.fixed,
+              selectedFontSize: 11,
+              unselectedFontSize: 11,
+              items: _activeTabs.map((tab) {
+                final isSelected = _activeTabs[_currentTabIndex] == tab;
+                if (tab == 'control') {
+                  return BottomNavigationBarItem(
+                    icon: Image.asset(
+                      isSelected ? 'assets/tab/remoite s.png' : 'assets/tab/Remote.png',
+                      width: 24,
+                      height: 24,
+                    ),
+                    label: 'Remote',
+                  );
+                } else if (tab == 'apps') {
+                  return BottomNavigationBarItem(
+                    icon: Image.asset(
+                      isSelected ? 'assets/tab/Apps s.png' : 'assets/tab/apps.png',
+                      width: 24,
+                      height: 24,
+                    ),
+                    label: 'Apps',
+                  );
+                } else if (tab == 'cast') {
+                  return BottomNavigationBarItem(
+                    icon: Image.asset(
+                      isSelected ? 'assets/tab/Cast s.png' : 'assets/tab/Cast.png',
+                      width: 24,
+                      height: 24,
+                    ),
+                    label: 'Cast',
+                  );
+                } else {
+                  return BottomNavigationBarItem(
+                    icon: Image.asset(
+                      isSelected ? 'assets/tab/Settings s.png' : 'assets/tab/Settings.png',
+                      width: 24,
+                      height: 24,
+                    ),
+                    label: 'Settings',
+                  );
+                }
+              }).toList(),
+            ),
+          ),
         ),
       ),
     );
@@ -1616,27 +1639,33 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
     return Container(
       width: 240,
       height: 240,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          begin: AlignmentGeometry.topCenter,
-          end: AlignmentGeometry.bottomCenter,
-          //center: const Alignment(-0.4, -0.5),
-          //radius: 1.0,
-          colors: const [
-            Color(0xFF794DEB),
-            Color(0xFF512CB8),
-          ],
-          //stops: const [0.0, 1.0],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+        decoration: inset.BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF794DEB),
+              Color(0xFF512CB8),
+            ],
           ),
-        ],
-      ),
+          boxShadow: [
+            // Top semicircle white inner highlight
+            inset.BoxShadow(
+              inset: true,
+              color: Colors.white.withOpacity(0.20),
+              blurRadius: 18,
+              offset: const Offset(0, 12),
+            ),
+            // Bottom semicircle black inner shadow
+            inset.BoxShadow(
+              inset: true,
+              color: Colors.black.withOpacity(0.45),
+              blurRadius: 20,
+              offset: const Offset(0, -12),
+            ),
+          ],
+        ),
       child: ClipOval(
         child: Stack(
           children: [
@@ -1660,23 +1689,23 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
             ),
 
             // Tight dark crescent at bottom edge
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.44),
-                        Colors.black.withOpacity(0.0),
-                      ],
-                      stops: const [0.0, 0.07],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+            // Positioned.fill(
+            //   child: IgnorePointer(
+            //     child: DecoratedBox(
+            //       decoration: BoxDecoration(
+            //         gradient: LinearGradient(
+            //           begin: Alignment.bottomCenter,
+            //           end: Alignment.topCenter,
+            //           colors: [
+            //             Colors.black.withOpacity(0.44),
+            //             Colors.black.withOpacity(0.0),
+            //           ],
+            //           stops: const [0.0, 0.07],
+            //         ),
+            //       ),
+            //     ),
+            //   ),
+            // ),
 
             // Center Select Button (OK) — SIZE REDUCED
             Align(
@@ -1689,20 +1718,33 @@ class _RemoteScreenState extends State<RemoteScreen> with SingleTickerProviderSt
                 child: Container(
                   width: 110,  // was 150
                   height: 110, // was 150
-                  decoration: BoxDecoration(
+                  decoration: inset.BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: AlignmentGeometry.topCenter,
-                      end: AlignmentGeometry.bottomCenter,
-                      //center: const Alignment(-0.4, -0.5),
-                      //radius: 1.0,
-                      colors: const [
+                    gradient: const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
                         Color(0xFF794DEB),
                         Color(0xFF512CB8),
                       ],
-                      //stops: const [0.0, 1.0],
                     ),
-                    border: Border.all(color: Colors.black, width: 2.5),
+                    border: Border.all(color: Colors.black, width: 3.5),
+                    boxShadow: [
+                      // Top semicircle white inner highlight
+                      inset.BoxShadow(
+                        inset: true,
+                        color: Colors.white.withOpacity(0.30),
+                        blurRadius: 10,
+                        offset: const Offset(0, 8),
+                      ),
+                      // Bottom semicircle black inner shadow
+                      inset.BoxShadow(
+                        inset: true,
+                        color: Colors.black.withOpacity(0.50),
+                        blurRadius: 12,
+                        offset: const Offset(0, -8),
+                      ),
+                    ],
                   ),
                   child: const Center(
                     child: Text(

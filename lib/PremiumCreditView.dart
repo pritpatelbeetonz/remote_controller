@@ -382,7 +382,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                               fontWeight: FontWeight.w500,
                               color: const Color(0xFF6F5BFF),
                               fontFamily: 'Inter',
-                              decoration: TextDecoration.underline,
+                            //  decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
