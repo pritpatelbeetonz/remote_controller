@@ -8,10 +8,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:get/get.dart';
 import 'package:remote_controller/for_ads/ads/ads_variable.dart';
 import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
+import 'package:remote_controller/for_ads/utils/app_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
@@ -123,11 +127,7 @@ class _RemoteScreenState extends State<RemoteScreen>
   }
 
   void _showNotConnectedSnackBar() {
-    _showToast(
-      'Not connected to TV. Redirecting to brand selection...',
-      backgroundColor: AppTheme.error,
-    );
-    Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
+    Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
   }
 
   // Load Apps
@@ -164,6 +164,59 @@ class _RemoteScreenState extends State<RemoteScreen>
       );
     } else {
       _showToast('Failed to launch $name', backgroundColor: AppTheme.error);
+    }
+  }
+
+  Future<void> rateUs(BuildContext context) async {
+    try {
+      final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final String packageName = packageInfo.packageName;
+      if (Platform.isIOS) {
+        final String url = 'https://apps.apple.com/app/id$iosAppId';
+        if (await canLaunchUrl(Uri.parse(url))) {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        } else {
+          throw 'Could not launch App Store.';
+        }
+      } else {
+        final String url = 'market://details?id=$packageName';
+        if (await canLaunchUrl(Uri.parse(url))) {
+          await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        } else {
+          final String webUrl =
+              'https://play.google.com/store/apps/details?id=$packageName';
+          if (await canLaunchUrl(Uri.parse(webUrl))) {
+            await launchUrl(Uri.parse(webUrl),
+                mode: LaunchMode.externalApplication);
+          } else {
+            throw 'Could not launch Play Store.';
+          }
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Fluttertoast.showToast(msg: 'Error: $e', toastLength: Toast.LENGTH_SHORT, gravity: ToastGravity.BOTTOM);
+      }
+    }
+  }
+
+  Future<void> shareApp(BuildContext context) async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final packageName = packageInfo.packageName;
+
+      if (Platform.isIOS) {
+        final url = 'https://apps.apple.com/app/id$iosAppId';
+        await Share.share(url);
+      } else {
+        final url =
+            'https://play.google.com/store/apps/details?id=$packageName';
+        await Share.share(url);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Fluttertoast.showToast(msg: 'Error: $e', toastLength: Toast.LENGTH_SHORT, gravity: ToastGravity.BOTTOM);
+      }
     }
   }
 
@@ -341,9 +394,15 @@ class _RemoteScreenState extends State<RemoteScreen>
     final manager = widget.manager;
     final deviceName = manager.currentDevice?.name ?? 'Universal TV';
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Container(
+    return WillPopScope(
+      onWillPop: () async {
+        widget.manager.disconnect();
+        Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
             image: AssetImage('assets/home/bg.png'),
@@ -386,7 +445,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                     GestureDetector(
                       onTap: () {
                         Get.offAll(
-                          () => BrandSelectionScreen(manager: manager),
+                          () => DiscoveryScreen(manager: manager, selectedBrand: 'All'),
                         );
                       },
                       child: Container(
@@ -553,7 +612,7 @@ class _RemoteScreenState extends State<RemoteScreen>
           ),
         ),
       ),
-    );
+    ));
   }
 
   // --- TAB PANELS ---
@@ -2243,14 +2302,14 @@ class _RemoteScreenState extends State<RemoteScreen>
                   iconPath: 'assets/settting/share app.png',
                   title: 'Share App',
                   onTap: () {
-                    // Action for Share App
+                    shareApp(context);
                   },
                 ),
                 _buildNewSettingsItem(
                   iconPath: 'assets/settting/Rate Us.png',
                   title: 'Rate Us',
                   onTap: () {
-                    Get.to(() => const Ratingscreen());
+                    rateUs(context);
                   },
                 ),
               ],
@@ -2831,7 +2890,7 @@ class _RemoteScreenState extends State<RemoteScreen>
             onPressed: () {
               Navigator.pop(context);
               widget.manager.disconnect();
-              Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
+              Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
             },
           ),
           ElevatedButton(
@@ -2840,7 +2899,7 @@ class _RemoteScreenState extends State<RemoteScreen>
             onPressed: () {
               Navigator.pop(context);
               widget.manager.disconnect();
-              Get.offAll(() => BrandSelectionScreen(manager: widget.manager));
+              Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
             },
           ),
         ],

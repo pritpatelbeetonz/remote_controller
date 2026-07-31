@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'tv_remote_adapter.dart';
 import '../adapters/android_tv_adapter.dart';
 import '../adapters/samsung_tizen_adapter.dart';
@@ -83,8 +84,54 @@ class TvRemoteManager extends ChangeNotifier {
 
   final List<StreamSubscription> _subscriptions = [];
 
+  bool _isWifiConnected = true;
+  bool get isWifiConnected => _isWifiConnected;
+
+  List<ConnectivityResult> _currentConnectivity = [];
+  List<ConnectivityResult> get currentConnectivity => _currentConnectivity;
+
   TvRemoteManager() {
     _initLogging();
+    _initConnectivityListener();
+  }
+
+  void _initConnectivityListener() {
+    Connectivity().checkConnectivity().then((result) {
+      _updateWifiStatus(result);
+    });
+
+    final sub = Connectivity().onConnectivityChanged.listen((result) {
+      _updateWifiStatus(result);
+    });
+    _subscriptions.add(sub);
+  }
+
+  void _updateWifiStatus(List<ConnectivityResult> result) {
+    _currentConnectivity = result;
+    final hasWifi = result.contains(ConnectivityResult.wifi) ||
+                    result.contains(ConnectivityResult.ethernet);
+    if (_isWifiConnected != hasWifi) {
+      _isWifiConnected = hasWifi;
+      addLocalLog('INFO', 'MANAGER', 'Network connectivity changed. Wi-Fi connected: $_isWifiConnected');
+      notifyListeners();
+
+      if (!_isWifiConnected) {
+        if (_isScanning) {
+          addLocalLog('WARN', 'MANAGER', 'Wi-Fi disconnected. Pausing active scanner.');
+        }
+        if (_connectionState == TvConnectionState.connected ||
+            _connectionState == TvConnectionState.connecting ||
+            _connectionState == TvConnectionState.pairing) {
+          addLocalLog('WARN', 'MANAGER', 'Wi-Fi lost. Disconnecting active session.');
+          disconnect();
+        }
+      } else {
+        if (_isScanning) {
+          addLocalLog('INFO', 'MANAGER', 'Wi-Fi reconnected. Restarting scan.');
+          stopScan().then((_) => startScan());
+        }
+      }
+    }
   }
 
   void _initLogging() {
@@ -163,6 +210,10 @@ class TvRemoteManager extends ChangeNotifier {
 
   Future<void> startScan() async {
     if (_isScanning) return;
+    if (!_isWifiConnected && !_bypassAuthentication && !_bypassToPairing) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot start scan: Wi-Fi is disconnected.');
+      return;
+    }
     _isScanning = true;
     _discoveredDevices = [];
     notifyListeners();
@@ -206,6 +257,12 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   Future<void> connectToDevice(TvDevice device) async {
+    if (!_isWifiConnected && !_bypassAuthentication && !_bypassToPairing) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot connect: Wi-Fi is disconnected.');
+      _connectionState = TvConnectionState.failed;
+      notifyListeners();
+      return;
+    }
     _currentDevice = device;
     if (_bypassAuthentication) {
       _connectionState = TvConnectionState.connected;

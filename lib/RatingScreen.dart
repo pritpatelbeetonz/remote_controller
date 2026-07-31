@@ -4,7 +4,7 @@ import '../for_ads/ads/ads_splash_utils.dart';
 import '../for_ads/ads/ads_variable.dart';
 import '../for_ads/utils/firebase_analysis.dart';
 import 'package:remote_controller/main.dart';
-import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
+import 'package:remote_controller/ui/screens/discovery_screen.dart';
 import 'PremiumCreditView.dart';
 
 class Ratingscreen extends StatefulWidget {
@@ -49,8 +49,9 @@ class _RatingscreenState extends State<Ratingscreen> {
                           Navigator.pushAndRemoveUntil(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => BrandSelectionScreen(
+                              builder: (_) => DiscoveryScreen(
                                 manager: MyApp.globalManager,
+                                selectedBrand: 'All',
                               ),
                             ),
                             (route) => false,
@@ -60,8 +61,9 @@ class _RatingscreenState extends State<Ratingscreen> {
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => BrandSelectionScreen(
+                                builder: (_) => DiscoveryScreen(
                                   manager: MyApp.globalManager,
+                                  selectedBrand: 'All',
                                 ),
                               ),
                               (route) => false,

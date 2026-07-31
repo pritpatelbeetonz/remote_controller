@@ -30,6 +30,7 @@ dependencies:
   purchases_flutter:
   shimmer: ^3.0.0
   package_info_plus: ^8.0.3
+  share_plus: ^10.0.0
   fluttertoast: ^8.2.4
   app_tracking_transparency: ^2.0.4
   in_app_review: ^2.0.9

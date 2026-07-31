@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
+import '../../for_ads/utils/app_constants.dart';
+import '../../for_ads/utils/shared_prefrence_service.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
 import 'pairing_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'remote_screen.dart';
+import 'brand_selection_screen.dart';
 
 class DiscoveryScreen extends StatefulWidget {
   final TvRemoteManager manager;
@@ -39,6 +43,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   void initState() {
     FirebaseAnalyticsService.logEvent(eventName: 'DISCOVERY_SCREEN');
     super.initState();
+    if (SharedPrefService.getIsFirstTime()) {
+      SharedPrefService.setIsFirstTime(false);
+      showLog("Entered First page");
+    }
     _selectedBrand = widget.selectedBrand;
     String initialPort;
     if (_selectedBrand == 'Samsung Tizen') {
@@ -146,48 +154,30 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: IconButton(
-          onPressed: () {
-            Get.back();
-          },
-          icon: Icon(Icons.arrow_back_rounded),
-        ),
-        //centerTitle: true,
+        leading: widget.selectedBrand == 'All'
+            ? null
+            : IconButton(
+                onPressed: () {
+                  Get.back();
+                },
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
         actions: [
-          // AnimatedBuilder(
-          //   animation: manager,
-          //   builder: (context, _) {
-          //     return GestureDetector(
-          //       onTap: () {
-          //         if (manager.isScanning) {
-          //           manager.stopScan();
-          //         } else {
-          //           manager.startScan();
-          //         }
-          //       },
-          //       child: Container(
-          //         alignment: Alignment.center,
-          //         padding: EdgeInsets.symmetric(
-          //           horizontal: 16.w,
-          //           vertical: 8.h,
-          //         ),
-          //         decoration: BoxDecoration(
-          //           color: Colors.white.withValues(alpha: 0.06),
-          //           borderRadius: BorderRadius.circular(28.r),
-          //         ),
-          //         child: Text(
-          //           manager.isScanning ? 'Stop Searching' : 'Start Searching',
-          //           style: TextStyle(
-          //             color: Colors.white,
-          //             fontFamily: 'SF Pro Display',
-          //             fontWeight: FontWeight.w500,
-          //             fontSize: 14.sp,
-          //           ),
-          //         ),
-          //       ),
-          //     );
-          //   },
-          // ),
+          TextButton(
+            onPressed: () {
+              widget.manager.stopScan();
+              Get.offAll(() => RemoteScreen(manager: widget.manager));
+            },
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'SF Pro Display',
+              ),
+            ),
+          ),
           SizedBox(width: 16.w),
         ],
       ),
@@ -203,9 +193,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       child: SafeArea(
         child: Builder(
           builder: (context) {
-            final displayedDevices = manager.discoveredDevices
-                .where((d) => d.brand == widget.selectedBrand)
-                .toList();
+            if (!manager.isWifiConnected && !manager.bypassAuthentication && !manager.bypassToPairing) {
+              return _buildWifiDisconnectedView();
+            }
+
+            final displayedDevices = widget.selectedBrand == 'All'
+                ? manager.discoveredDevices
+                : manager.discoveredDevices
+                    .where((d) => d.brand == widget.selectedBrand)
+                    .toList();
 
             if (_showManualInput && displayedDevices.isEmpty) {
               return SingleChildScrollView(
@@ -408,7 +404,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   children: [
                     SizedBox(height: 10.h),
                     const Center(child: RadarIndicator()),
-                    SizedBox(height: 24.h),
+                    SizedBox(height: 16.h),
+                    _buildSelectBrandButton(),
+                    SizedBox(height: 16.h),
                     Center(
                       child: Text(
                         widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
@@ -599,7 +597,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               children: [
                 SizedBox(height: 10.h),
                 const RadarIndicator(),
-                SizedBox(height: 24.h),
+                SizedBox(height: 16.h),
+                _buildSelectBrandButton(),
+                SizedBox(height: 16.h),
                 Text(
                   widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
                   textAlign: TextAlign.center,
@@ -805,6 +805,48 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     if (brand == 'Amazon Fire TV') return 'assets/tv images/Amazon fire tv.png';
     if (brand == 'Apple TV') return 'assets/tv images/Apple Tv.png';
     return 'assets/tv images/Sony.png';
+  }
+
+  Widget _buildSelectBrandButton() {
+    return GestureDetector(
+      onTap: () {
+        widget.manager.stopScan();
+        Get.to(() => BrandSelectionScreen(manager: widget.manager));
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 12.h),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.tv_rounded, color: Colors.white, size: 22.sp),
+                SizedBox(width: 12.w),
+                Text(
+                  'Select TV Brand',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'SF Pro Display',
+                  ),
+                ),
+              ],
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildScanningPlaceholder() {
@@ -1125,6 +1167,96 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildWifiDisconnectedView() {
+    final hasMobileData = widget.manager.currentConnectivity.contains(ConnectivityResult.mobile);
+    
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(24.r),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (hasMobileData ? AppTheme.warning : AppTheme.error).withValues(alpha: 0.2),
+                  width: 2.w,
+                ),
+              ),
+              child: Icon(
+                hasMobileData ? Icons.signal_cellular_nodata_rounded : Icons.wifi_off_rounded,
+                size: 72.r,
+                color: hasMobileData ? AppTheme.warning : AppTheme.error,
+              ),
+            ),
+            SizedBox(height: 24.h),
+            Text(
+              hasMobileData ? 'Wi-Fi Connection Required' : 'No Network Connection',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22.sp,
+                fontFamily: 'SF Pro Display',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              hasMobileData
+                  ? 'You are currently connected to Mobile Data. Smart TV control requires a local Wi-Fi connection.\n\nPlease connect your phone to the same Wi-Fi network as your TV.'
+                  : 'Your phone is offline. Please turn on Wi-Fi and connect to the same network as your TV to discover and control devices.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 15.sp,
+                fontFamily: 'SF Pro Display',
+                fontWeight: FontWeight.w400,
+                height: 1.4,
+              ),
+            ),
+            SizedBox(height: 36.h),
+            GestureDetector(
+              onTap: () {
+                Connectivity().checkConnectivity().then((result) {
+                  Fluttertoast.showToast(
+                    msg: 'Checking connection...',
+                    backgroundColor: AppTheme.info,
+                    textColor: Colors.white,
+                  );
+                });
+              },
+              child: Container(
+                alignment: Alignment.center,
+                width: double.infinity,
+                height: 56.h,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(33.33.r),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                  ),
+                ),
+                child: Text(
+                  'Check Connection',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    color: Colors.white,
+                    fontFamily: 'SF Pro Display',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

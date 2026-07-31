@@ -12,6 +12,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
 import 'package:remote_controller/main.dart';
+import 'package:remote_controller/ui/screens/discovery_screen.dart';
 import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
 import 'for_ads/ads/ads_variable.dart';
 import 'for_ads/ads/app_open_ad.dart';
@@ -148,7 +149,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                                 crossAxisAlignment: CrossAxisAlignment
                                     .start, // <-- was center-ish before, now explicit
                                 children: [
-                                  _featureRow("Control Your TV From Anywhere"),
+                                  _featureRow("Enjoy an Ad-Free Experience"),
                                   SizedBox(height: 12.h),
                                   _featureRow("Cast Photos Videos And Music"),
                                   SizedBox(height: 12.h),
@@ -458,8 +459,9 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                       onTap: () {
                         if (widget.onboarding) {
                           Get.offAll(
-                            () => BrandSelectionScreen(
+                            () => DiscoveryScreen(
                               manager: MyApp.globalManager,
+                              selectedBrand: 'All',
                             ),
                           );
                         } else {
@@ -612,7 +614,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
       );
 
       if (widget.onboarding) {
-        Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
+        Get.offAll(() => DiscoveryScreen(manager: MyApp.globalManager, selectedBrand: 'All'));
         widget.onDone();
       } else {
         Navigator.of(context).pop();
@@ -773,7 +775,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           ],
                         )
                       : null,
-                  color: selected ? Colors.transparent : Colors.white.withOpacity(0.05),
+                  color: selected ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(27.8.r),
                 ),
                 child: Padding(
@@ -1040,8 +1042,9 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
 
                           if (widget.onboarding) {
                             Get.offAll(
-                              () => BrandSelectionScreen(
+                              () => DiscoveryScreen(
                                 manager: MyApp.globalManager,
+                                selectedBrand: 'All',
                               ),
                             );
                             widget.onDone();

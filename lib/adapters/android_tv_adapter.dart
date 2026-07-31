@@ -16,9 +16,11 @@ class AndroidTvAdapter implements TvRemoteAdapter {
   bool _nativeLogsSubscribed = false;
 
   void _addLog(String level, String message) {
+    final emoji = level == 'ERROR' ? '❌' : (level == 'WARN' ? '⚠️' : (level == 'DEBUG' ? '🐛' : 'ℹ️'));
+    print('$emoji [AndroidTVAdapter] [$level] $message');
     _logController.add({
       'level': level,
-      'tag': 'ANDROID_TV_CAST',
+      'tag': 'ANDROID_TV',
       'message': message,
       'timestamp': DateTime.now(),
     });
@@ -29,12 +31,20 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     if (!_nativeLogsSubscribed) {
       _nativeLogsSubscribed = true;
       _eventChannel.receiveBroadcastStream().listen((event) {
-        _logController.add(Map<String, dynamic>.from(event as Map));
+        final logMap = Map<String, dynamic>.from(event as Map);
+        final level = logMap['level'] as String? ?? 'DEBUG';
+        final tag = logMap['tag'] as String? ?? 'NATIVE';
+        final message = logMap['message'] as String? ?? '';
+        final emoji = level == 'ERROR' ? '❌' : (level == 'WARN' ? '⚠️' : (level == 'DEBUG' ? '🐛' : 'ℹ️'));
+        print('$emoji [AndroidTVNative] [$tag] [$level] $message');
+        _logController.add(logMap);
       }, onError: (e) {
+        final errorMsg = 'Error from native logs: $e';
+        print('❌ [AndroidTVNative] [ERROR] $errorMsg');
         _logController.add({
           'level': 'ERROR',
           'tag': 'ANDROID_TV_NATIVE',
-          'message': 'Error from native logs: $e',
+          'message': errorMsg,
           'timestamp': DateTime.now(),
         });
       });
@@ -60,9 +70,12 @@ class AndroidTvAdapter implements TvRemoteAdapter {
 
   @override
   Future<void> startDiscovery(Function(List<TvDevice>) onDevices) async {
+    _addLog('INFO', '🔍 [startDiscovery] Starting Android TV network service scan...');
     await AndroidTVRemote.startDiscovery(
       onDevices: (List<TVDevice> nativeDevices) {
+        _addLog('INFO', '📺 [startDiscovery] Discovery returned ${nativeDevices.length} raw devices.');
         final devices = nativeDevices.map((d) {
+          _addLog('INFO', '📱 [startDiscovery] Discovered device: ${d.name} (${d.ipAddress}:${d.port})');
           return TvDevice(
             id: d.ipAddress,
             name: d.name,
@@ -78,14 +91,21 @@ class AndroidTvAdapter implements TvRemoteAdapter {
 
   @override
   Future<void> stopDiscovery() async {
-    // Discovery automatically times out or is stopped via native call
+    _addLog('INFO', '⏹️ [stopDiscovery] Stopping network scan request.');
+    try {
+      await const MethodChannel('com.waysol.android_tv_remote_package/method').invokeMethod('stopDiscovery');
+    } catch (e) {
+      _addLog('ERROR', 'Failed to stop discovery natively: $e');
+    }
   }
 
   @override
   Future<bool> connect(TvDevice device) async {
+    _addLog('INFO', '🔌 [connect] Attempting pairing/connection to TV: ${device.name} at ${device.ipAddress}:${device.port}...');
     _currentDevice = device;
     try {
       final path = await _ensureCertificates();
+      _addLog('INFO', '🔑 [connect] Certificate verified at: $path');
       final success = await AndroidTVRemote.connect(
         host: device.ipAddress,
         port: device.port,
@@ -93,10 +113,14 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         password: '', // Empty password used in BouncyCastle generation
       );
       if (!success) {
+        _addLog('ERROR', '❌ [connect] Connection failed to TV: ${device.name}');
         _currentDevice = null;
+      } else {
+        _addLog('INFO', '✅ [connect] Connection successful to TV: ${device.name}!');
       }
       return success;
     } catch (e) {
+      _addLog('ERROR', '💥 [connect] Exception occurred during connection handshake: $e');
       _currentDevice = null;
       return false;
     }
@@ -104,6 +128,7 @@ class AndroidTvAdapter implements TvRemoteAdapter {
 
   @override
   Future<void> disconnect() async {
+    _addLog('INFO', '🔌 [disconnect] Closing session for device: ${_currentDevice?.name ?? "Unknown"}');
     await stopCasting();
     await AndroidTVRemote.disconnect();
     _currentDevice = null;
@@ -114,15 +139,29 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     required Function(String) onPin,
     required Function(String) onStatus,
   }) async {
+    _addLog('INFO', '🔄 [startPairing] Requesting TLS/Protobuf pairing protocol handshake...');
     return await AndroidTVRemote.startPairing(
-      onPin: onPin,
-      onStatus: onStatus,
+      onPin: (pin) {
+        _addLog('INFO', '🔢 [startPairing] PIN displayed on screen: $pin');
+        onPin(pin);
+      },
+      onStatus: (status) {
+        _addLog('INFO', '📊 [startPairing] Pairing progress state changed: $status');
+        onStatus(status);
+      },
     );
   }
 
   @override
   Future<bool> sendPin(String pin) async {
-    return await AndroidTVRemote.sendPin(pin);
+    _addLog('INFO', '📤 [sendPin] Submitting PIN verification code: $pin');
+    final success = await AndroidTVRemote.sendPin(pin);
+    if (success) {
+      _addLog('INFO', '✅ [sendPin] PIN verification request successfully accepted.');
+    } else {
+      _addLog('ERROR', '❌ [sendPin] PIN verification request failed.');
+    }
+    return success;
   }
 
   @override
@@ -182,7 +221,14 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         command = 'source';
         break;
     }
-    return await AndroidTVRemote.sendCommand(command);
+    _addLog('INFO', '🕹️ [sendKey] Sending key command: ${key.name} -> command parameter: $command');
+    final success = await AndroidTVRemote.sendCommand(command);
+    if (success) {
+      _addLog('INFO', '✅ [sendKey] Key command parameter $command successfully sent.');
+    } else {
+      _addLog('ERROR', '❌ [sendKey] Key command parameter $command failed to send.');
+    }
+    return success;
   }
 
   @override
@@ -202,17 +248,17 @@ class AndroidTvAdapter implements TvRemoteAdapter {
   Future<bool> launchApp(String appId) async {
     try {
       final appLink = 'market://launch?id=$appId';
-      _addLog('INFO', 'Launching Android TV app link: $appLink');
+      _addLog('INFO', '🚀 [launchApp] Launching Android TV app link: $appLink (App ID: $appId)');
       final res = await AndroidTVRemote.channel.invokeMethod('launchApp', appLink);
       final success = (res as Map?)?['success'] == true;
       if (success) {
-        _addLog('INFO', 'Successfully launched app: $appId');
+        _addLog('INFO', '✅ [launchApp] App $appId launched successfully.');
       } else {
-        _addLog('ERROR', 'Failed to launch app: $appId');
+        _addLog('ERROR', '❌ [launchApp] Failed to launch app: $appId.');
       }
       return success;
     } catch (e) {
-      _addLog('ERROR', 'Exception during app launch for $appId: $e');
+      _addLog('ERROR', '💥 [launchApp] Exception during app launch for $appId: $e');
       return false;
     }
   }
@@ -220,11 +266,17 @@ class AndroidTvAdapter implements TvRemoteAdapter {
   @override
   Future<bool> sendText(String text) async {
     try {
-      _addLog('INFO', 'Sending text string natively: $text');
+      _addLog('INFO', '⌨️ [sendText] Typing text string natively: "$text"');
       final res = await AndroidTVRemote.channel.invokeMethod('sendText', text);
-      return (res as Map?)?['success'] == true;
+      final success = (res as Map?)?['success'] == true;
+      if (success) {
+        _addLog('INFO', '✅ [sendText] Text successfully typed.');
+      } else {
+        _addLog('ERROR', '❌ [sendText] Failed to send text.');
+      }
+      return success;
     } catch (e) {
-      _addLog('ERROR', 'Exception during sendText: $e');
+      _addLog('ERROR', '💥 [sendText] Exception during sendText: $e');
       return false;
     }
   }
@@ -384,8 +436,9 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     String? name,
     String? format,
   }) async {
+    _addLog('INFO', '🎬 [castMedia] Initializing media cast session -> Name: "$name", Type: "$type", URL: "$url"');
     if (_currentDevice == null) {
-      _addLog('ERROR', 'Cannot cast media: Android TV is not connected.');
+      _addLog('ERROR', '❌ [castMedia] Cannot cast media: Android TV is not connected.');
       return false;
     }
 

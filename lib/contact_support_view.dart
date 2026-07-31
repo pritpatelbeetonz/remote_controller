@@ -66,7 +66,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
     final String email = AdsVariable.supportContactEmail;
     final isPremium = AdsVariable.isPurchase;
     final tier = isPremium ? 'Premium' : 'Free';
-    final subject = 'Framz Feedback · ${_selected.label} · $tier';
+    final subject = 'Universal Remote Feedback · ${_selected.label} · $tier';
     final body = message;
 
     final uri = Uri(
@@ -399,7 +399,7 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Subject: Framz Feedback · ${_selected.label} · $tier',
+                          'Subject: Universal Remote Feedback · ${_selected.label} · $tier',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.4),
                             fontSize: 12,

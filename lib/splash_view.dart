@@ -10,7 +10,8 @@ import 'package:lottie/lottie.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:remote_controller/welcomePageView.dart';
 import 'package:remote_controller/main.dart';
-import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
+import 'package:remote_controller/ui/screens/discovery_screen.dart';
+import 'ui/screens/brand_selection_screen.dart';
 import 'package:get/get.dart';
 import '../../for_ads/ads/ads_splash_utils.dart';
 import '../../for_ads/ads/ads_variable.dart';
@@ -54,14 +55,14 @@ class SplashScreenState extends State<SplashScreen> {
           : Get.off(WelPageview()); //SurveyForm()
     } else {
       if (AdsVariable.isPurchase) {
-        Get.offAll(() => BrandSelectionScreen(manager: MyApp.globalManager));
+        Get.offAll(() => DiscoveryScreen(manager: MyApp.globalManager, selectedBrand: 'All'));
       } else {
         Get.offAll(
           () => PremiumCreditView(
             onboarding: true,
             onDone: () {
               Get.offAll(
-                () => BrandSelectionScreen(manager: MyApp.globalManager),
+                () => DiscoveryScreen(manager: MyApp.globalManager, selectedBrand: 'All'),
               );
             },
           ),

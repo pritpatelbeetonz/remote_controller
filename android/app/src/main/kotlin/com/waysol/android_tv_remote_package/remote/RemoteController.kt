@@ -3,27 +3,69 @@ package com.waysol.android_tv_remote_package.remote
 import android.util.Log
 import com.waysol.android_tv_remote_package.connection.TLSManager
 import com.waysol.android_tv_remote_package.protocol.ProtobufMessage
+import com.waysol.android_tv_remote_package.protocol.MessageParser
 import com.waysol.android_tv_remote_package.util.Constants
 import com.waysol.android_tv_remote_package.util.Logger
 import kotlinx.coroutines.*
-import com.waysol.android_tv_remote_package.remote.KeyCode
 
 class RemoteController(
     private val tlsManager: TLSManager
 ) {
 
     private val scope = CoroutineScope(Dispatchers.Default + Job())
-    private val commandQueue = mutableListOf<RemoteCommand>()
-    private var processingJob: Job? = null
+    private var listeningJob: Job? = null
+
+    init {
+        startListening()
+    }
+
+    private fun startListening() {
+        listeningJob = scope.launch(Dispatchers.IO) {
+            try {
+                Logger.d(Constants.TAG_REMOTE, "Starting background socket reading loop...")
+                while (isActive && tlsManager.isConnected()) {
+                    val data = tlsManager.receiveData() ?: break
+                    
+                    // 1. Handle Ping request
+                    val pingVal = MessageParser.extractPingVal(data)
+                    if (pingVal != null) {
+                        Logger.d(Constants.TAG_REMOTE, "Received Ping Request ($pingVal). Replying with Pong...")
+                        val pong = ProtobufMessage.createPongMessage(pingVal)
+                        tlsManager.sendData(pong)
+                        continue
+                    }
+
+                    // 2. Handle Configure request (Startup features handshake)
+                    if (MessageParser.isConfigureRequest(data)) {
+                        Logger.d(Constants.TAG_REMOTE, "Received Configure Request. Replying with client capabilities...")
+                        val configResponse = ProtobufMessage.createConfigureResponse()
+                        tlsManager.sendData(configResponse)
+                        continue
+                    }
+
+                    // 3. Handle Set Active request
+                    if (MessageParser.isSetActiveRequest(data)) {
+                        Logger.d(Constants.TAG_REMOTE, "Received Set Active Request. Replying with active status...")
+                        val activeResponse = ProtobufMessage.createActiveResponse()
+                        tlsManager.sendData(activeResponse)
+                        continue
+                    }
+
+                    Logger.d(Constants.TAG_REMOTE, "Received other control message from TV (size: ${data.size})")
+                }
+            } catch (e: Exception) {
+                Logger.e(Constants.TAG_REMOTE, "Socket reading loop exception: ${e.message}", e)
+            } finally {
+                Logger.i(Constants.TAG_REMOTE, "Socket reading loop stopped.")
+            }
+        }
+    }
 
     fun sendKeyCode(keycode: Int, delayMs: Long = 100): Boolean {
         return try {
-            val message = ProtobufMessage.createKeycodeMessage(keycode)
+            // Direction 3 = SHORT press (combines down and up automatically)
+            val message = ProtobufMessage.createKeycodeMessage(keycode, 3)
             val result = tlsManager.sendData(message)
-
-            scope.launch {
-                delay(delayMs)
-            }
 
             if (result) {
                 Logger.d(Constants.TAG_REMOTE, "Keycode sent: $keycode")
@@ -97,21 +139,10 @@ class RemoteController(
 
     fun destroy() {
         try {
-            processingJob?.cancel()
+            listeningJob?.cancel()
             scope.cancel()
-            commandQueue.clear()
         } catch (e: Exception) {
             Logger.e(Constants.TAG_REMOTE, "Destroy error: ${e.message}")
         }
     }
-}
-
-data class RemoteCommand(
-    val type: CommandType,
-    val keycode: Int = 0,
-    val text: String = ""
-)
-
-enum class CommandType {
-    KEYCODE, TEXT, MEDIA
 }

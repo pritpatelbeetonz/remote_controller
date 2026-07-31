@@ -7,113 +7,7 @@ import java.io.ByteArrayOutputStream
  */
 object ProtobufMessage {
 
-    // Message type constants
-    private const val PAIRING_REQUEST_TYPE = 1
-    private const val SECRET_MESSAGE_TYPE = 2
-    private const val KEYCODE_MESSAGE_TYPE = 3
-    private const val INPUT_MESSAGE_TYPE = 4
-
-    /**
-     * Create pairing request message
-     * This is sent when initiating pairing with the TV
-     */
-    fun createPairingRequest(): ByteArray {
-        val out = ByteArrayOutputStream()
-
-        // Message type: PAIRING_REQUEST (1)
-        writeVarint(out, 1 shl 3 or 0) // field 1, wire type 0 (varint)
-        writeVarint(out, PAIRING_REQUEST_TYPE)
-
-        // Client name (field 2, string)
-        val clientName = "android_tv_remote"
-        val nameBytes = clientName.toByteArray()
-        writeVarint(out, 2 shl 3 or 2) // field 2, wire type 2 (length-delimited)
-        writeVarint(out, nameBytes.size)
-        out.write(nameBytes)
-
-        return out.toByteArray()
-    }
-
-    /**
-     * Create secret message with PIN code
-     */
-    fun createSecretMessage(pin: String): ByteArray {
-        val out = ByteArrayOutputStream()
-
-        // Message type: SECRET (2)
-        writeVarint(out, 1 shl 3 or 0)
-        writeVarint(out, SECRET_MESSAGE_TYPE)
-
-        // Secret field (field 2, bytes)
-        val secretBytes = pin.toByteArray()
-        writeVarint(out, 2 shl 3 or 2) // field 2, wire type 2 (length-delimited)
-        writeVarint(out, secretBytes.size)
-        out.write(secretBytes)
-
-        return out.toByteArray()
-    }
-
-    /**
-     * Create keycode message for remote commands
-     */
-    fun createKeycodeMessage(keycode: Int): ByteArray {
-        val out = ByteArrayOutputStream()
-
-        // Message type: KEYCODE (3)
-        writeVarint(out, 1 shl 3 or 0)
-        writeVarint(out, KEYCODE_MESSAGE_TYPE)
-
-        // Keycode field (field 2, varint)
-        writeVarint(out, 2 shl 3 or 0)
-        writeVarint(out, keycode)
-
-        return out.toByteArray()
-    }
-
-    /**
-     * Create text input message
-     */
-    fun createTextInputMessage(text: String): ByteArray {
-        val out = ByteArrayOutputStream()
-
-        // Message type: TEXT_INPUT (4)
-        writeVarint(out, 1 shl 3 or 0)
-        writeVarint(out, INPUT_MESSAGE_TYPE)
-
-        // Text field (field 2, string)
-        val textBytes = text.toByteArray()
-        writeVarint(out, 2 shl 3 or 2)
-        writeVarint(out, textBytes.size)
-        out.write(textBytes)
-
-        return out.toByteArray()
-    }
-
-    /**
-     * Create application link / deep link launch message
-     */
-    fun createAppLinkMessage(appLink: String): ByteArray {
-        val innerOut = ByteArrayOutputStream()
-        val linkBytes = appLink.toByteArray()
-        // field 1 (app_link), wire type 2 (length-delimited)
-        writeVarint(innerOut, 1 shl 3 or 2)
-        writeVarint(innerOut, linkBytes.size)
-        innerOut.write(linkBytes)
-
-        val innerBytes = innerOut.toByteArray()
-
-        val out = ByteArrayOutputStream()
-        // field 90 (remote_app_link_launch_request), wire type 2 (length-delimited)
-        writeVarint(out, 90 shl 3 or 2)
-        writeVarint(out, innerBytes.size)
-        out.write(innerBytes)
-
-        return out.toByteArray()
-    }
-
-    /**
-     * Write variable-length integer (varint) to ByteArrayOutputStream
-     */
+    // Helper to write varint to stream
     private fun writeVarint(out: ByteArrayOutputStream, value: Int) {
         var v = value
         while ((v and 0xFFFFFF80.toInt()) != 0) {
@@ -121,5 +15,168 @@ object ProtobufMessage {
             v = v ushr 7
         }
         out.write(v and 0x7F)
+    }
+
+    // Helper to build a length-delimited field
+    private fun buildLengthDelimitedField(fieldNumber: Int, value: ByteArray): ByteArray {
+        val out = ByteArrayOutputStream()
+        writeVarint(out, (fieldNumber shl 3) or 2)
+        writeVarint(out, value.size)
+        out.write(value)
+        return out.toByteArray()
+    }
+
+    // Helper to build a varint field
+    private fun buildVarintField(fieldNumber: Int, value: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        writeVarint(out, (fieldNumber shl 3) or 0)
+        writeVarint(out, value)
+        return out.toByteArray()
+    }
+
+    // Helper to build a string field
+    private fun buildStringField(fieldNumber: Int, value: String): ByteArray {
+        return buildLengthDelimitedField(fieldNumber, value.toByteArray(Charsets.UTF_8))
+    }
+
+    // Polo OuterMessage prefix: version = 2 (field 1, varint), status = STATUS_OK / 200 (field 2, varint)
+    private fun getPoloPrefix(): ByteArray {
+        val out = ByteArrayOutputStream()
+        writeVarint(out, (1 shl 3) or 0)
+        writeVarint(out, 2) // protocol_version = 2
+        writeVarint(out, (2 shl 3) or 0)
+        writeVarint(out, 200) // status = STATUS_OK (200)
+        return out.toByteArray()
+    }
+
+    /**
+     * Create pairing request message (OuterMessage wrapper)
+     */
+    fun createPairingRequest(clientName: String = "android_tv_remote"): ByteArray {
+        val pairingRequestOut = ByteArrayOutputStream()
+        pairingRequestOut.write(buildStringField(1, "atvremote")) // service_name
+        pairingRequestOut.write(buildStringField(2, clientName)) // client_name
+        
+        val out = ByteArrayOutputStream()
+        out.write(getPoloPrefix())
+        out.write(buildLengthDelimitedField(10, pairingRequestOut.toByteArray())) // pairing_request
+        return out.toByteArray()
+    }
+
+    /**
+     * Create options message (OuterMessage wrapper)
+     */
+    fun createOptionsMessage(): ByteArray {
+        val encodingOut = ByteArrayOutputStream()
+        encodingOut.write(buildVarintField(1, 3)) // ENCODING_TYPE_HEXADECIMAL = 3
+        encodingOut.write(buildVarintField(2, 6)) // symbol_length = 6
+
+        val optionsOut = ByteArrayOutputStream()
+        optionsOut.write(buildLengthDelimitedField(1, encodingOut.toByteArray())) // input_encodings
+        optionsOut.write(buildVarintField(3, 1)) // preferred_role = ROLE_TYPE_INPUT (1)
+
+        val out = ByteArrayOutputStream()
+        out.write(getPoloPrefix())
+        out.write(buildLengthDelimitedField(20, optionsOut.toByteArray())) // options
+        return out.toByteArray()
+    }
+
+    /**
+     * Create configuration message (OuterMessage wrapper)
+     */
+    fun createConfigurationMessage(): ByteArray {
+        val encodingOut = ByteArrayOutputStream()
+        encodingOut.write(buildVarintField(1, 3)) // ENCODING_TYPE_HEXADECIMAL = 3
+        encodingOut.write(buildVarintField(2, 6)) // symbol_length = 6
+
+        val configOut = ByteArrayOutputStream()
+        configOut.write(buildLengthDelimitedField(1, encodingOut.toByteArray())) // encoding
+        configOut.write(buildVarintField(2, 1)) // client_role = ROLE_TYPE_INPUT (1)
+
+        val out = ByteArrayOutputStream()
+        out.write(getPoloPrefix())
+        out.write(buildLengthDelimitedField(30, configOut.toByteArray())) // configuration
+        return out.toByteArray()
+    }
+
+    /**
+     * Create secret message with PIN verification hash (OuterMessage wrapper)
+     */
+    fun createSecretMessage(hashBytes: ByteArray): ByteArray {
+        val secretOut = ByteArrayOutputStream()
+        secretOut.write(buildLengthDelimitedField(1, hashBytes)) // secret
+
+        val out = ByteArrayOutputStream()
+        out.write(getPoloPrefix())
+        out.write(buildLengthDelimitedField(40, secretOut.toByteArray())) // secret (field 40)
+        return out.toByteArray()
+    }
+
+    /**
+     * Create keycode message for remote commands (RemoteMessage wrapper)
+     */
+    fun createKeycodeMessage(keycode: Int, direction: Int = 3): ByteArray { // Default direction 3 = SHORT
+        val keyInjectOut = ByteArrayOutputStream()
+        keyInjectOut.write(buildVarintField(1, keycode))
+        keyInjectOut.write(buildVarintField(2, direction))
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(10, keyInjectOut.toByteArray())) // remote_key_inject
+        return out.toByteArray()
+    }
+
+    /**
+     * Create application link / deep link launch message (RemoteMessage wrapper)
+     */
+    fun createAppLinkMessage(appLink: String): ByteArray {
+        val appLinkOut = ByteArrayOutputStream()
+        appLinkOut.write(buildStringField(1, appLink))
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(90, appLinkOut.toByteArray())) // remote_app_link_launch_request
+        return out.toByteArray()
+    }
+
+    /**
+     * Create pong message to reply to keepalive ping requests (RemoteMessage wrapper)
+     */
+    fun createPongMessage(val1: Int): ByteArray {
+        val pingResponseOut = ByteArrayOutputStream()
+        pingResponseOut.write(buildVarintField(1, val1))
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(9, pingResponseOut.toByteArray())) // remote_ping_response
+        return out.toByteArray()
+    }
+
+    /**
+     * Create configure response (RemoteMessage wrapper)
+     */
+    fun createConfigureResponse(): ByteArray {
+        val deviceInfoOut = ByteArrayOutputStream()
+        deviceInfoOut.write(buildVarintField(3, 1)) // unknown1 = 1
+        deviceInfoOut.write(buildStringField(4, "1")) // unknown2 = "1"
+        deviceInfoOut.write(buildStringField(5, "atvremote")) // package_name
+        deviceInfoOut.write(buildStringField(6, "1.0.0")) // app_version
+
+        val configOut = ByteArrayOutputStream()
+        configOut.write(buildVarintField(1, 622)) // code1 = active features
+        configOut.write(buildLengthDelimitedField(2, deviceInfoOut.toByteArray())) // device_info
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(1, configOut.toByteArray())) // remote_configure
+        return out.toByteArray()
+    }
+
+    /**
+     * Create active response (RemoteMessage wrapper)
+     */
+    fun createActiveResponse(): ByteArray {
+        val activeOut = ByteArrayOutputStream()
+        activeOut.write(buildVarintField(1, 622)) // active = 622
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(2, activeOut.toByteArray())) // remote_set_active
+        return out.toByteArray()
     }
 }

@@ -81,19 +81,7 @@ class DeviceScanner(
                 discoveryListener
             )
 
-            scope.launch {
-                try {
-                    Logger.d(Constants.TAG_DISCOVERY, "Coroutine: delay starting for $timeout ms")
-                    delay(timeout)
-                    Logger.d(Constants.TAG_DISCOVERY, "Coroutine: delay finished")
-                    stopDiscovery()
-                } catch (e: CancellationException) {
-                    Logger.d(Constants.TAG_DISCOVERY, "Coroutine: delay cancelled: ${e.message}")
-                    throw e
-                } catch (e: Exception) {
-                    Logger.e(Constants.TAG_DISCOVERY, "Coroutine: delay error: ${e.message}", e)
-                }
-            }
+            Logger.d(Constants.TAG_DISCOVERY, "mDNS Discovery started continuously (no auto-timeout).")
         } catch (e: Exception) {
             Logger.e(Constants.TAG_DISCOVERY, "Discovery error: ${e.message}", e)
         }

@@ -60,6 +60,10 @@ class AppleTvAdapter implements TvRemoteAdapter {
       await for (final PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
         ResourceRecordQuery.serverPointer(serviceType),
       )) {
+        _addLog(
+          'DEBUG',
+          'PTR Service Found: ${ptr.domainName}',
+        );
         String? friendlyName;
         if (ptr.domainName.endsWith('.$serviceType')) {
           friendlyName = ptr.domainName.substring(0, ptr.domainName.length - serviceType.length - 1);
@@ -68,15 +72,24 @@ class AppleTvAdapter implements TvRemoteAdapter {
         await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
           ResourceRecordQuery.service(ptr.domainName),
         )) {
+          _addLog(
+            'DEBUG',
+            'SRV Target: ${srv.target}:${srv.port}',
+          );
           await for (final IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
             ResourceRecordQuery.addressIPv4(srv.target),
           )) {
+            _addLog(
+              'DEBUG',
+              'Resolved IP: ${ip.address.address}',
+            );
             final ipAddress = ip.address.address;
             final port = srv.port;
             final name = friendlyName ?? 'Apple TV';
 
-            if (!discovered.any((d) => d.ipAddress == ipAddress)) {
+            if (!discovered.any((d) => d.ipAddress == ipAddress)) if (!discovered.any((d) => d.ipAddress == ipAddress)) {
               _addLog('INFO', 'Discovered Apple TV ($name) at IP: $ipAddress:$port');
+
               final device = TvDevice(
                 id: 'appletv-$ipAddress',
                 name: '$name ($ipAddress)',
@@ -84,16 +97,26 @@ class AppleTvAdapter implements TvRemoteAdapter {
                 port: port,
                 brand: 'Apple TV',
               );
+
               discovered.add(device);
+
+              _addLog(
+                'INFO',
+                'Total Apple TV devices discovered: ${discovered.length}',
+              );
+
               onDevices(List.from(discovered));
-            }
-          }
+            }          }
         }
       }
     } catch (e) {
       _addLog('ERROR', 'mDNS Discovery error: $e');
     } finally {
       client.stop();
+      _addLog(
+        'INFO',
+        'Discovery completed. Total devices found: ${discovered.length}',
+      );
       _addLog('INFO', 'Apple TV mDNS scan finished.');
     }
   }

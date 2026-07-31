@@ -19,7 +19,10 @@ class WelPageview extends StatefulWidget {
 
   State<WelPageview> createState() => WelPageviewState();
 }
-
+//if (SharedPrefService.getIsFirstTime()) {
+//       SharedPrefService.setIsFirstTime(false);
+//       showLog("Entered First page");
+//     }
 class WelPageviewState extends State<WelPageview> {
   final PageController pageController = PageController(initialPage: 0);
   int currentIndex = 0;

@@ -49,35 +49,35 @@ class AdsLoadUtil extends GetxController {
         adLoadCallback: AppOpenAdLoadCallback(
           onAdLoaded: (ad) async {
             FirebaseAnalyticsService.logEvent(eventName: 'LOAD_OPEN_AD');
-            // await loadPreLoadAds();
             log(
               "Ad Loaded:=====================================================================",
             );
-            ad.show();
+            // FIX: Set fullScreenContentCallback BEFORE calling ad.show()
+            // so the callbacks are guaranteed to be in place when the ad fires.
             ad.fullScreenContentCallback = FullScreenContentCallback(
               onAdShowedFullScreenContent: (ad) {
                 log('Ad showed full screen content');
-                // showToast("Splash Intertial Add show");
               },
               onAdFailedToShowFullScreenContent: (ad, error) {
                 log('$ad onAdFailedToShowFullScreenContent=======:- $error');
+                ad.dispose();
                 onDismissed();
               },
               onAdDismissedFullScreenContent: (ad) {
+                ad.dispose();
                 onDismissed();
                 AppOpenAdManager adManager = AppOpenAdManager();
                 AppLifecycleReactor life = AppLifecycleReactor(
                   appOpenAdManager: adManager,
                 );
                 life.listenToAppStateChanges(shouldShow: true);
-
-                ///CHANGES TO LOAD PRE LOAD AFTER SPLASH DISMISSED
                 AdsLoadUtil.loadPreInterstitialAd(
                   adId: AdsVariable.interPreLoadIOS,
                 );
                 log('$ad onAdDismissedFullScreenContent========:-');
               },
             );
+            ad.show();
           },
           onAdFailedToLoad: (error) {
             onDismissed();
@@ -285,14 +285,13 @@ class AdsLoadUtil extends GetxController {
                 FullScreenContentCallback(
                   onAdImpression: (ad) {
                     showLog("onAdImpression");
-                    // Future.delayed(const Duration(seconds: 1), () {
-                    //   onDismissed();
-                    // });
                   },
                   onAdDismissedFullScreenContent: (ad) {
                     ad.dispose();
                     log("Ad Reloaded");
                     loadPreInterstitialAd(adId: AdsVariable.interPreLoadIOS);
+                    // FIX: onDismissed was missing — navigateScreen() never ran
+                    onDismissed();
                   },
                   onAdFailedToShowFullScreenContent: (ad, error) {
                     ad.dispose();

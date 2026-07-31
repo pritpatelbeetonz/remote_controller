@@ -41,11 +41,39 @@ class TLSManager(
         }
     }
 
+    private fun writeVarint(out: DataOutputStream, value: Int) {
+        var v = value
+        while ((v and 0xFFFFFF80.toInt()) != 0) {
+            out.write((v and 0x7F) or 0x80)
+            v = v ushr 7
+        }
+        out.write(v and 0x7F)
+    }
+
+    @Throws(IOException::class)
+    private fun readVarint(input: DataInputStream): Int {
+        var result = 0
+        var shift = 0
+        while (shift < 32) {
+            if (input.available() <= 0 && shift > 0) {
+                // If there's no data available, but we've started reading,
+                // we should wait or error. Since readByte blocks, we just call it.
+            }
+            val b = input.readByte().toInt()
+            result = result or ((b and 0x7F) shl shift)
+            if ((b and 0x80) == 0) {
+                return result
+            }
+            shift += 7
+        }
+        throw IOException("Varint too long")
+    }
+
     @Throws(IOException::class)
     fun sendData(data: ByteArray): Boolean {
         return try {
             outputStream?.let {
-                it.writeInt(data.size)
+                writeVarint(it, data.size)
                 it.write(data)
                 it.flush()
                 true
@@ -60,7 +88,7 @@ class TLSManager(
     fun receiveData(): ByteArray? {
         return try {
             inputStream?.let {
-                val length = it.readInt()
+                val length = readVarint(it)
                 if (length <= 0) return null
 
                 val data = ByteArray(length)
@@ -72,6 +100,21 @@ class TLSManager(
             null
         } catch (e: Exception) {
             Log.e(TAG, "Receive failed: ${e.message}")
+            null
+        }
+    }
+
+    fun getPeerCertificate(): java.security.cert.X509Certificate? {
+        return try {
+            val session = socket?.session
+            val certs = session?.peerCertificates
+            if (certs != null && certs.isNotEmpty()) {
+                certs[0] as? java.security.cert.X509Certificate
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get peer certificate: ${e.message}")
             null
         }
     }

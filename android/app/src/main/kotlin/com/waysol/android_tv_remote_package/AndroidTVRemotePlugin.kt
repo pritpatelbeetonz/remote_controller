@@ -123,6 +123,7 @@ class AndroidTVRemotePlugin(
         when (method) {
             "generateCertificates" -> generateCertificates(wrappedResult)
             "startDiscovery" -> startDiscovery(wrappedResult)
+            "stopDiscovery" -> stopDiscovery(wrappedResult)
             "connect" -> connect(arguments as Map<String, Any>, wrappedResult)
             "startPairing" -> startPairing(wrappedResult)
             "sendPin" -> sendPin(arguments as String, wrappedResult)
@@ -192,6 +193,17 @@ class AndroidTVRemotePlugin(
         }
     }
 
+    private fun stopDiscovery(result: MethodChannel.Result) {
+        try {
+            Logger.i(Constants.TAG_PLUGIN, "Stop discovery requested natively")
+            deviceScanner?.stopDiscovery()
+            result.success(mapOf("success" to true))
+        } catch (e: Exception) {
+            Logger.e(Constants.TAG_PLUGIN, "Exception during stopDiscovery", e)
+            result.error("DISCOVERY_ERROR", e.message, null)
+        }
+    }
+
     private fun connect(arguments: Map<String, Any>, result: MethodChannel.Result) {
         scope.launch(Dispatchers.IO) {
             try {
@@ -216,7 +228,7 @@ class AndroidTVRemotePlugin(
                 Handler(Looper.getMainLooper()).post {
                     if (connected) {
                         Logger.i(Constants.TAG_PLUGIN, "TLS Connection successfully established with $host:$port")
-                        pairingManager = PairingManager(tlsManager!!)
+                        pairingManager = PairingManager(context, tlsManager!!, pkcs12Path)
                         result.success(mapOf("success" to true))
                     } else {
                         Logger.e(Constants.TAG_PLUGIN, "TLS Connection failed with $host:$port")

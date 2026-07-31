@@ -23,6 +23,7 @@ class _Welcome3State extends State<Welcome3> {
         if (mounted) {
           setState(() {});
           _controller.setLooping(true);
+          _controller.setVolume(0.0);
           if (widget.isActive) {
             _controller.play();
           }
