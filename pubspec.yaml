@@ -55,6 +55,7 @@ flutter:
 
   uses-material-design: true
   assets:
+    - assets/bgswitch.png
     - assets/tab/
     - assets/tv images/
     - assets/apps/

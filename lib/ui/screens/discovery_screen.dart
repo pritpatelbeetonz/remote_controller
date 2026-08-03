@@ -14,6 +14,7 @@ import '../widgets/log_console_drawer.dart';
 import 'pairing_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'remote_screen.dart';
+import 'package:remote_controller/for_ads/ads/ads_variable.dart';
 import 'brand_selection_screen.dart';
 
 class DiscoveryScreen extends StatefulWidget {
@@ -138,7 +139,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   @override
   Widget build(BuildContext context) {
     final manager = widget.manager;
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -158,15 +161,25 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             ? null
             : IconButton(
                 onPressed: () {
-                  Get.back();
+                  AdsVariable.onShowAds(
+                    context,
+                    onComplete: () {
+                      Get.back();
+                    },
+                  );
                 },
                 icon: const Icon(Icons.arrow_back_rounded),
               ),
         actions: [
           TextButton(
             onPressed: () {
-              widget.manager.stopScan();
-              Get.offAll(() => RemoteScreen(manager: widget.manager));
+              AdsVariable.onShowAds(
+                context,
+                onComplete: () {
+                  widget.manager.stopScan();
+                  Get.offAll(() => RemoteScreen(manager: widget.manager));
+                },
+              );
             },
             child: Text(
               'Cancel',
@@ -661,7 +674,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         ),
       ),
       ),
-    );
+    ));
   }
 
   Widget _buildManualInputForm() {

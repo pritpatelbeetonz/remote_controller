@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:get/get.dart';
 import 'package:remote_controller/for_ads/ads/ads_variable.dart';
@@ -65,8 +66,8 @@ class _RemoteScreenState extends State<RemoteScreen>
   bool _isLoadingApps = false;
   List<Map<String, String>> _installedApps = [];
   bool _isNavigating = false;
-
   late final List<String> _activeTabs;
+  bool _wasConnected = false;
 
   @override
   void initState() {
@@ -88,6 +89,7 @@ class _RemoteScreenState extends State<RemoteScreen>
       }
     });
 
+    _wasConnected = widget.manager.connectionState == TvConnectionState.connected;
     widget.manager.addListener(_onConnectionStateChange);
   }
 
@@ -101,7 +103,10 @@ class _RemoteScreenState extends State<RemoteScreen>
   }
 
   void _onConnectionStateChange() {
-    if (widget.manager.connectionState != TvConnectionState.connected &&
+    if (widget.manager.connectionState == TvConnectionState.connected) {
+      _wasConnected = true;
+    } else if (widget.manager.connectionState != TvConnectionState.connected &&
+        _wasConnected &&
         mounted) {
       _showNotConnectedSnackBar();
     }
@@ -127,7 +132,16 @@ class _RemoteScreenState extends State<RemoteScreen>
   }
 
   void _showNotConnectedSnackBar() {
-    Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+    _showToast(
+      'Device not connected. Redirecting to search...',
+      backgroundColor: AppTheme.error,
+    );
+    AdsVariable.onShowAds(
+      context,
+      onComplete: () {
+        Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+      },
+    );
   }
 
   // Load Apps
@@ -395,11 +409,7 @@ class _RemoteScreenState extends State<RemoteScreen>
     final deviceName = manager.currentDevice?.name ?? 'Universal TV';
 
     return WillPopScope(
-      onWillPop: () async {
-        widget.manager.disconnect();
-        Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
-        return false;
-      },
+      onWillPop: () async => false,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Container(
@@ -638,13 +648,20 @@ class _RemoteScreenState extends State<RemoteScreen>
             children: [
               // D-pad & Trackpad toggle pill
               Container(
+                width: 145.w,
+                height: 65.h,
+                padding: EdgeInsets.symmetric(horizontal: 0.w, vertical: 5.h),  // ← More padding
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E22),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: AppTheme.border),
+                  borderRadius: BorderRadius.circular(32),  // ← ADD THIS
+
+                  //color: const Color(0xFF1E1E22),
+                  //borderRadius: BorderRadius.circular(28),
+                  //border: Border.all(color: AppTheme.border),
+                  image: DecorationImage(image: AssetImage('assets/bgswitch.png'),fit: BoxFit.cover, ),
                 ),
                 child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.max,  // ← Changed from .min to .max
+                  mainAxisAlignment: MainAxisAlignment.center,  // ← Add spacing
                   children: [
                     // Move Button (Classic D-Pad)
                     GestureDetector(
@@ -1296,7 +1313,7 @@ class _RemoteScreenState extends State<RemoteScreen>
             crossAxisCount: 2,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: 1.15,
+            childAspectRatio: 1.5,
             children: [
               _buildCastGridItem(
                 iconPath: 'assets/casting/photos.png',
@@ -2192,130 +2209,132 @@ class _RemoteScreenState extends State<RemoteScreen>
 
   // Tab 4: Settings Panel
   Widget _buildSettingsPanel() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Settings',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              fontFamily: 'SF Pro Display',
+    return Container(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Settings',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                fontFamily: 'SF Pro Display',
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Banner: Unlock the Full Experience
-          GestureDetector(
-            onTap: () {
-              Get.to(() => PremiumCreditView(onboarding: false, onDone: () {}));
-            },
-            child: Container(
-              height: 90,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                image: const DecorationImage(
-                  image: AssetImage('assets/settting/bg.png'),
-                  fit: BoxFit.cover,
+            // Banner: Unlock the Full Experience
+            GestureDetector(
+              onTap: () {
+                Get.to(() => PremiumCreditView(onboarding: false, onDone: () {}));
+              },
+              child: Container(
+                height: 90,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  image: const DecorationImage(
+                    image: AssetImage('assets/settting/bg.png'),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    Image.asset('assets/settting/ic.png', width: 32, height: 32),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Unlock the Full Experience',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              fontFamily: 'SF Pro Display',
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Access all remote features with faster, smoother & unlimited connectivity.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.white70,
+                              fontFamily: 'SF Pro Display',
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
+            ),
+            const SizedBox(height: 24),
+
+            // General Section
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E1116),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.06),
+                  width: 1.0,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Image.asset('assets/settting/ic.png', width: 32, height: 32),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Unlock the Full Experience',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontFamily: 'SF Pro Display',
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Access all remote features with faster, smoother & unlimited connectivity.',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white70,
-                            fontFamily: 'SF Pro Display',
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
+                  const Text(
+                    'General',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white70,
+                      fontFamily: 'SF Pro Display',
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildNewSettingsItem(
+                    iconPath: 'assets/settting/Contact us.png',
+                    title: 'Contact Us',
+                    onTap: () {
+                      Get.to(() => const ContactSupportScreen());
+                    },
+                  ),
+                  _buildNewSettingsItem(
+                    iconPath: 'assets/settting/privacy policy.png',
+                    title: 'Privacy Policy',
+                    onTap: () {
+                      // Action for Privacy Policy
+                    },
+                  ),
+                  _buildNewSettingsItem(
+                    iconPath: 'assets/settting/share app.png',
+                    title: 'Share App',
+                    onTap: () {
+                      shareApp(context);
+                    },
+                  ),
+                  _buildNewSettingsItem(
+                    iconPath: 'assets/settting/Rate Us.png',
+                    title: 'Rate Us',
+                    onTap: () {
+                      rateUs(context);
+                    },
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-
-          // General Section
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.04),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.06),
-                width: 1.0,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'General',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white70,
-                    fontFamily: 'SF Pro Display',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _buildNewSettingsItem(
-                  iconPath: 'assets/settting/Contact us.png',
-                  title: 'Contact Us',
-                  onTap: () {
-                    Get.to(() => const ContactSupportScreen());
-                  },
-                ),
-                _buildNewSettingsItem(
-                  iconPath: 'assets/settting/privacy policy.png',
-                  title: 'Privacy Policy',
-                  onTap: () {
-                    // Action for Privacy Policy
-                  },
-                ),
-                _buildNewSettingsItem(
-                  iconPath: 'assets/settting/share app.png',
-                  title: 'Share App',
-                  onTap: () {
-                    shareApp(context);
-                  },
-                ),
-                _buildNewSettingsItem(
-                  iconPath: 'assets/settting/Rate Us.png',
-                  title: 'Rate Us',
-                  onTap: () {
-                    rateUs(context);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2889,8 +2908,13 @@ class _RemoteScreenState extends State<RemoteScreen>
             child: const Text('SWITCH BRAND'),
             onPressed: () {
               Navigator.pop(context);
-              widget.manager.disconnect();
-              Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+              AdsVariable.onShowAds(
+                context,
+                onComplete: () {
+                  widget.manager.disconnect();
+                  Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+                },
+              );
             },
           ),
           ElevatedButton(
@@ -2898,8 +2922,13 @@ class _RemoteScreenState extends State<RemoteScreen>
             child: const Text('DISCONNECT'),
             onPressed: () {
               Navigator.pop(context);
-              widget.manager.disconnect();
-              Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+              AdsVariable.onShowAds(
+                context,
+                onComplete: () {
+                  widget.manager.disconnect();
+                  Get.offAll(() => DiscoveryScreen(manager: widget.manager, selectedBrand: 'All'));
+                },
+              );
             },
           ),
         ],

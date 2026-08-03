@@ -7,6 +7,8 @@ import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
 import 'remote_screen.dart';
+import 'discovery_screen.dart';
+import 'package:remote_controller/for_ads/ads/ads_variable.dart';
 
 class PairingScreen extends StatefulWidget {
   final TvRemoteManager manager;
@@ -91,7 +93,9 @@ class _PairingScreenState extends State<PairingScreen> {
     final manager = widget.manager;
     final deviceName = manager.currentDevice?.name ?? 'Android TV';
 
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
       backgroundColor: Colors.black,
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
@@ -111,8 +115,13 @@ class _PairingScreenState extends State<PairingScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
-            manager.disconnect();
-            Get.back();
+            AdsVariable.onShowAds(
+              context,
+              onComplete: () {
+                manager.disconnect();
+                Get.offAll(() => DiscoveryScreen(manager: manager, selectedBrand: 'All'));
+              },
+            );
           },
         ),
       ),
@@ -258,6 +267,6 @@ class _PairingScreenState extends State<PairingScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 }

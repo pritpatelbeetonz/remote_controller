@@ -216,7 +216,7 @@ class AdsSplashUtils {
         }
 
         if(kDebugMode){
-          // AdsVariable.isPurchase =true;
+          AdsVariable.isPurchase =true;
         }
 
         // Removed the debug mode override of AdsVariable.isPurchase = false;

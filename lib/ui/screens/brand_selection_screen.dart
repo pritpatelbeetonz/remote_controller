@@ -21,8 +21,36 @@ class BrandSelectionScreen extends StatelessWidget {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirebaseAnalyticsService.logEvent(eventName: 'BRAND_SELECTION_SCREEN');
     });
-    return Scaffold(
-      body: SafeArea(
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          title: Text(
+            'Choose TV brand to get started',
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 18.sp,
+              fontFamily: 'SF Pro Display',
+              color: Colors.white,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              AdsVariable.onShowAds(
+                context,
+                onComplete: () {
+                  Get.offAll(() => DiscoveryScreen(manager: manager, selectedBrand: 'All'));
+                },
+              );
+            },
+          ),
+        ),
+        body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 10.0),
@@ -30,8 +58,6 @@ class BrandSelectionScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(height: 5.h,),
-                Text('Choose TV brand to get started',style: TextStyle(fontSize: 20.sp,fontWeight: FontWeight.w500,color: Colors.white),),
                 kDebugMode ? AnimatedBuilder(
                   animation: manager,
                   builder: (context, _) {
@@ -176,7 +202,7 @@ class BrandSelectionScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 
   void _onBrandSelected(BuildContext context, String brand) {
