@@ -1,4 +1,6 @@
 import 'dart:developer';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:remote_controller/core/country_manager.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -32,9 +34,20 @@ class SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    testFirestore();
     debugPrint("*****///***** adsvarible === ${AdsVariable.isPurchase}......");
     WidgetsBinding.instance.addPostFrameCallback((callback) async {
       FirebaseAnalyticsService.logEvent(eventName: 'SPLASH_SCREEN');
+
+      // Fetch and cache country code if not present
+      String? cachedCountry = SharedPrefService.getCountryCode();
+      if (cachedCountry == null) {
+        final country = await CountryManager().getDeviceCountryCode();
+        await SharedPrefService.setCountryCode(country);
+      } else {
+        print('🌍 Cached Country Code: $cachedCountry');
+      }
+
       await AdsSplashUtils().getOnlineIds(
         navigateScreen: () async {
           log('navigate screen');
@@ -45,6 +58,17 @@ class SplashScreenState extends State<SplashScreen> {
         },
       );
     });
+  }
+
+  Future<void> testFirestore() async {
+    await FirebaseFirestore.instance
+        .collection('test')
+        .add({
+      'message': 'Firestore Connected',
+      'time': FieldValue.serverTimestamp(),
+    });
+
+    print('Firestore test successful');
   }
 
   void navigatingToNextActivity() async {

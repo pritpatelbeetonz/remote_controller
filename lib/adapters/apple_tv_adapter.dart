@@ -16,6 +16,9 @@ class AppleTvAdapter implements TvRemoteAdapter {
 
   AppleTvAdapter([this._clientFactory, this._clientFactoryMDns]);
 
+  @override
+  void Function()? onConnectionLost;
+
   final StreamController<Map<String, dynamic>> _logController = StreamController<Map<String, dynamic>>.broadcast();
 
   void _addLog(String level, String message) {
@@ -87,7 +90,24 @@ class AppleTvAdapter implements TvRemoteAdapter {
             final port = srv.port;
             final name = friendlyName ?? 'Apple TV';
 
-            if (!discovered.any((d) => d.ipAddress == ipAddress)) if (!discovered.any((d) => d.ipAddress == ipAddress)) {
+            final lowerName = name.toLowerCase();
+            if (lowerName.contains('mac mini') ||
+                lowerName.contains('macmini') ||
+                lowerName.contains('macbook') ||
+                lowerName.contains('laptop') ||
+                lowerName.contains('mac book') ||
+                lowerName.contains('imac') ||
+                lowerName.contains('mac studio') ||
+                lowerName.contains('mac pro') ||
+                lowerName.contains('macbookpro') ||
+                lowerName.contains('macbookair') ||
+                lowerName.contains('macos') ||
+                (lowerName.contains('mac') && (lowerName.contains('’s') || lowerName.contains('\'s')))) {
+              _addLog('INFO', 'Filtered out Mac device from Apple TV discovery: $name');
+              continue;
+            }
+
+            if (!discovered.any((d) => d.ipAddress == ipAddress)) {
               _addLog('INFO', 'Discovered Apple TV ($name) at IP: $ipAddress:$port');
 
               final device = TvDevice(

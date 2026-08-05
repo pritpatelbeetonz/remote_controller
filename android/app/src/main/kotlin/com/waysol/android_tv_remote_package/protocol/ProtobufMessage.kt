@@ -154,10 +154,12 @@ object ProtobufMessage {
      */
     fun createConfigureResponse(): ByteArray {
         val deviceInfoOut = ByteArrayOutputStream()
-        deviceInfoOut.write(buildVarintField(3, 1)) // unknown1 = 1
-        deviceInfoOut.write(buildStringField(4, "1")) // unknown2 = "1"
+        deviceInfoOut.write(buildStringField(1, "Android"))      // model
+        deviceInfoOut.write(buildStringField(2, "Waysol"))        // vendor
+        deviceInfoOut.write(buildVarintField(3, 1))               // unknown1 = 1
+        deviceInfoOut.write(buildStringField(4, "1"))              // unknown2 = "1"
         deviceInfoOut.write(buildStringField(5, "atvremote")) // package_name
-        deviceInfoOut.write(buildStringField(6, "1.0.0")) // app_version
+        deviceInfoOut.write(buildStringField(6, "1.0.0"))          // app_version
 
         val configOut = ByteArrayOutputStream()
         configOut.write(buildVarintField(1, 622)) // code1 = active features

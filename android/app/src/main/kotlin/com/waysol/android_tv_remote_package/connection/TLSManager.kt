@@ -1,6 +1,7 @@
 package com.waysol.android_tv_remote_package.connection
 
-import android.util.Log
+import com.waysol.android_tv_remote_package.util.Logger
+import com.waysol.android_tv_remote_package.util.Constants
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
@@ -14,31 +15,26 @@ class TLSManager(
     private var inputStream: DataInputStream? = null
     private var outputStream: DataOutputStream? = null
 
-    @Throws(IOException::class)
+    @Throws(Exception::class)
     fun connect(host: String, port: Int): Boolean {
-        return try {
-            val socketFactory = sslContext.socketFactory
-            socket = socketFactory.createSocket(host, port) as SSLSocket
+        Logger.i(Constants.TAG_TLS, "Starting control connection to $host:$port")
+        val socketFactory = sslContext.socketFactory
+        socket = socketFactory.createSocket(host, port) as SSLSocket
+        Logger.i(Constants.TAG_SOCKET, "Socket created")
 
-            socket?.apply {
-                enabledProtocols = arrayOf("TLSv1.2")
-                enabledCipherSuites = arrayOf(
-                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
-                )
-                startHandshake()
-            }
-
-            inputStream = DataInputStream(socket?.inputStream)
-            outputStream = DataOutputStream(socket?.outputStream)
-
-            Log.d(TAG, "TLS connection established with $host:$port")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "TLS connection failed: ${e.message}")
-            disconnect()
-            false
+        socket?.apply {
+            soTimeout = 30000
+            enabledProtocols = arrayOf("TLSv1.2")
+            Logger.i(Constants.TAG_TLS, "Starting TLS handshake...")
+            startHandshake()
+            Logger.i(Constants.TAG_TLS, "TLS handshake successful")
         }
+
+        inputStream = DataInputStream(socket?.inputStream)
+        outputStream = DataOutputStream(socket?.outputStream)
+
+        Logger.d(Constants.TAG_TLS, "TLS connection established with $host:$port")
+        return true
     }
 
     private fun writeVarint(out: DataOutputStream, value: Int) {
@@ -79,7 +75,7 @@ class TLSManager(
                 true
             } ?: false
         } catch (e: Exception) {
-            Log.e(TAG, "Send failed: ${e.message}")
+            Logger.e(Constants.TAG_SOCKET, "Send failed: ${e.message}", e)
             false
         }
     }
@@ -89,17 +85,28 @@ class TLSManager(
         return try {
             inputStream?.let {
                 val length = readVarint(it)
-                if (length <= 0) return null
+                if (length <= 0) {
+                    Logger.w(Constants.TAG_SOCKET, "EOF received (zero length message)")
+                    return null
+                }
 
                 val data = ByteArray(length)
                 it.readFully(data)
                 data
             }
         } catch (e: java.io.EOFException) {
-            Log.d(TAG, "Connection closed by peer")
+            Logger.i(Constants.TAG_SOCKET, "Socket closed: EOF received (connection closed by peer)")
+            null
+        } catch (e: java.net.SocketTimeoutException) {
+            Logger.e(Constants.TAG_SOCKET, "Socket timeout: Read timed out", e)
+            // Not a disconnect — just no data within soTimeout. Rethrow so the
+            // caller can keep listening instead of treating this like a real EOF.
+            throw e
+        } catch (e: java.net.SocketException) {
+            Logger.e(Constants.TAG_SOCKET, "Connection reset: Socket exception", e)
             null
         } catch (e: Exception) {
-            Log.e(TAG, "Receive failed: ${e.message}")
+            Logger.e(Constants.TAG_SOCKET, "Receive failed: ${e.message}", e)
             null
         }
     }
@@ -114,23 +121,25 @@ class TLSManager(
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get peer certificate: ${e.message}")
+            Logger.e(Constants.TAG_CERTIFICATE, "Failed to get peer certificate: ${e.message}", e)
             null
         }
     }
 
     fun disconnect() {
+        Logger.i(Constants.TAG_SOCKET, "Socket disconnected")
         try {
             inputStream?.close()
             outputStream?.close()
             socket?.close()
+            Logger.i(Constants.TAG_SOCKET, "Socket closed")
         } catch (e: Exception) {
-            Log.e(TAG, "Disconnect error: ${e.message}")
+            Logger.e(Constants.TAG_SOCKET, "Disconnect error: ${e.message}", e)
         }
         socket = null
     }
 
-    fun isConnected(): Boolean = socket?.isConnected == true
+    fun isConnected(): Boolean = socket?.isConnected == true && socket?.isClosed == false
 
     companion object {
         private const val TAG = "TLSManager"

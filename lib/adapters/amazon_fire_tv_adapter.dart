@@ -19,6 +19,9 @@ class AmazonFireTvAdapter implements TvRemoteAdapter {
 
   AmazonFireTvAdapter([this._clientFactory]);
 
+  @override
+  void Function()? onConnectionLost;
+
   final StreamController<Map<String, dynamic>> _logController = StreamController<Map<String, dynamic>>.broadcast();
 
   void _addLog(String level, String message) {

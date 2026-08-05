@@ -36,6 +36,9 @@ class SamsungTizenAdapter implements TvRemoteAdapter {
 
   SamsungTizenAdapter([this._webSocketFactory]);
 
+  @override
+  void Function()? onConnectionLost;
+
   // ─── Logging ─────────────────────────────────────────────────────────────
 
   final StreamController<Map<String, dynamic>> _logController =

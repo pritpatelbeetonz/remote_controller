@@ -236,6 +236,7 @@ class _RemoteScreenState extends State<RemoteScreen>
 
   // Cast URL
   Future<void> _startCast(String url, String type, {String? name}) async {
+    if (!mounted) return;
     setState(() {
       _isCasting = true;
       _activeCastName = name ?? 'Web Stream';
@@ -247,6 +248,7 @@ class _RemoteScreenState extends State<RemoteScreen>
       name: _activeCastName,
     );
 
+    if (!mounted) return;
     if (!success) {
       setState(() {
         _isCasting = false;
@@ -284,12 +286,14 @@ class _RemoteScreenState extends State<RemoteScreen>
           }
         }
 
+        if (!mounted) return;
         if (!permissionGranted) {
           if (await Permission.storage.request().isGranted) {
             permissionGranted = true;
           }
         }
 
+        if (!mounted) return;
         if (!permissionGranted) {
           _showToast(
             'Storage permissions are required to access local media files.',
@@ -327,6 +331,7 @@ class _RemoteScreenState extends State<RemoteScreen>
         final XFile? video = await ImagePicker().pickVideo(
           source: ImageSource.gallery,
         );
+        if (!mounted) return;
         if (video != null) {
           filePath = video.path;
           fileName = video.name;
@@ -339,6 +344,7 @@ class _RemoteScreenState extends State<RemoteScreen>
           'Opening FilePicker for audio...',
         );
         final result = await FilePicker.pickFiles(type: FileType.audio);
+        if (!mounted) return;
         if (result != null && result.files.single.path != null) {
           filePath = result.files.single.path;
           fileName = result.files.single.name;
@@ -453,10 +459,71 @@ class _RemoteScreenState extends State<RemoteScreen>
                       ),
                     ),
                     GestureDetector(
-                      onTap: () {
-                        Get.offAll(
-                          () => DiscoveryScreen(manager: manager, selectedBrand: 'All'),
-                        );
+                      onTap: () async {
+                        if (manager.connectionState == TvConnectionState.connected) {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF1E1E22),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(color: AppTheme.border),
+                              ),
+                              title: const Text(
+                                'Disconnect TV?',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'SF Pro Display',
+                                ),
+                              ),
+                              content: Text(
+                                'Are you sure you want to disconnect from "${manager.currentDevice?.name ?? 'this TV'}"?',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                  fontFamily: 'SF Pro Display',
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: const Text(
+                                    'Cancel',
+                                    style: TextStyle(
+                                      color: Colors.white54,
+                                      fontFamily: 'SF Pro Display',
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFF794DEB),
+                                  ),
+                                  child: const Text(
+                                    'Disconnect',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontFamily: 'SF Pro Display',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            manager.disconnect();
+                            Get.offAll(
+                              () => DiscoveryScreen(manager: manager, selectedBrand: 'All'),
+                            );
+                          }
+                        } else {
+                          Get.offAll(
+                            () => DiscoveryScreen(manager: manager, selectedBrand: 'All'),
+                          );
+                        }
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -1042,70 +1109,43 @@ class _RemoteScreenState extends State<RemoteScreen>
 
   Map<String, dynamic> _getAppTheme(Map<String, String> app) {
     final name = app['name']?.toLowerCase() ?? '';
-    final id = app['id']?.toLowerCase() ?? '';
     final iconUrl = app['iconUrl'] ?? app['icon'] ?? '';
 
     Color cardColor = const Color(0xFF1E1E22);
-    String resolvedIcon = iconUrl;
 
-    if (iconUrl.startsWith('http://') || iconUrl.startsWith('https://')) {
-      resolvedIcon = iconUrl;
-    }
-
-    if (name.contains('youtube')) {
+    if (name.contains('youtube music')) {
+      cardColor = const Color(0xFF0F0F0F);
+    } else if (name.contains('youtube')) {
       cardColor = Colors.white;
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/1384/1384060.png';
     } else if (name.contains('netflix')) {
       cardColor = const Color(0xFF0F0F0F);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/732/732228.png';
-    } else if (name.contains('prime video') ||
-        id.contains('amazonvideo') ||
-        name.contains('amazon video')) {
+    } else if (name.contains('prime video') || name.contains('amazon video')) {
       cardColor = const Color(0xFF0F172A);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977544.png';
     } else if (name.contains('disney')) {
       cardColor = const Color(0xFF0A192F);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977583.png';
     } else if (name.contains('spotify')) {
       cardColor = const Color(0xFF0C0C0D);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/174/174872.png';
     } else if (name.contains('plex')) {
       cardColor = const Color(0xFF1F1F23);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977618.png';
     } else if (name.contains('kodi')) {
       cardColor = const Color(0xFF111E2E);
-      resolvedIcon =
-          'https://cdn.icon-icons.com/icons2/3053/PNG/512/kodi_macos_bigsur_icon_189912.png';
     } else if (name.contains('hulu')) {
       cardColor = const Color(0xFF0B1A1E);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977602.png';
-    } else if (name.contains('hbo') || name.contains('max')) {
+    } else if (name.contains('max')) {
       cardColor = const Color(0xFF0A0E29);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977613.png';
     } else if (name.contains('apple')) {
       cardColor = Colors.black;
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/179/179309.png';
-    } else if (name.contains('espn')) {
-      cardColor = const Color(0xFFCC0000);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977592.png';
     } else if (name.contains('twitch')) {
       cardColor = const Color(0xFF6441A5);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5968/5968819.png';
-    } else if (name.contains('tiktok')) {
-      cardColor = Colors.black;
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/3046/3046124.png';
-    } else if (name.contains('sling')) {
-      cardColor = const Color(0xFF0A2342);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977597.png';
-    } else if (name.contains('cnet')) {
-      cardColor = Colors.white;
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977590.png';
     } else if (name.contains('tubi')) {
       cardColor = const Color(0xFF330066);
-      resolvedIcon = 'https://cdn-icons-png.flaticon.com/512/5977/5977598.png';
+    } else if (name.contains('sony')) {
+      cardColor = const Color(0xFF00113A);
+    } else if (name.contains('hotstar') || name.contains('jiohotstar')) {
+      cardColor = const Color(0xFF0A1128);
     }
 
-    return {'cardColor': cardColor, 'iconUrl': resolvedIcon};
+    return {'cardColor': cardColor, 'iconUrl': iconUrl};
   }
 
   // Tab 2: App Launcher Grid
@@ -1217,37 +1257,41 @@ class _RemoteScreenState extends State<RemoteScreen>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Image.network(
-                    resolvedIcon,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) => Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.tv, color: Colors.white30, size: 32),
-                        const SizedBox(height: 4),
-                        Text(
-                          app['name'] ?? '',
-                          style: const TextStyle(color: Colors.white54, fontSize: 11),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                child: resolvedIcon.isNotEmpty
+                    ? SizedBox.expand(
+                        child: Image.asset(
+                          resolvedIcon,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.tv, color: Colors.white30, size: 32),
+                              const SizedBox(height: 4),
+                              Text(
+                                app['name'] ?? '',
+                                style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const Center(
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.tv, color: Colors.white30, size: 32),
+                          const SizedBox(height: 4),
+                          Text(
+                            app['name'] ?? '',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
               ),
             ),
           );

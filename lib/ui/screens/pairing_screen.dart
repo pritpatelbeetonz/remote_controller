@@ -93,11 +93,13 @@ class _PairingScreenState extends State<PairingScreen> {
     final manager = widget.manager;
     final deviceName = manager.currentDevice?.name ?? 'Android TV';
 
-    return WillPopScope(
-      onWillPop: () async => false,
-      child: Scaffold(
+    return Stack(
+      children: [
+        WillPopScope(
+          onWillPop: () async => false,
+          child: Scaffold(
       backgroundColor: Colors.black,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(
           'Pairing Code',
@@ -126,11 +128,12 @@ class _PairingScreenState extends State<PairingScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Spacer(),
+              SizedBox(height: 40.h),
               // Title
               Text(
                 '6-Digit Code',
@@ -209,7 +212,7 @@ class _PairingScreenState extends State<PairingScreen> {
                     );
                   }),
                 ),
-              const Spacer(),
+              SizedBox(height: 40.h),
 
               // Pairing status feedback (optional, but keep it clean if present)
               if (manager.pairingStatusMessage != null)
@@ -267,6 +270,49 @@ class _PairingScreenState extends State<PairingScreen> {
           ),
         ),
       ),
-    ));
+    ),
+  ),
+        if (manager.loadingMessage != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: Material(
+                color: Colors.black.withValues(alpha: 0.7),
+                child: Center(
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: 40.w),
+                    padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E22),
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF794DEB)),
+                        ),
+                        SizedBox(height: 16.h),
+                        Text(
+                          manager.loadingMessage!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16.sp,
+                            fontFamily: 'SF Pro Display',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }

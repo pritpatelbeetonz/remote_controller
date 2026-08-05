@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:android_tv_remote_package/models/tv_device.dart';
 import '../core/tv_remote_adapter.dart';
+import '../core/country_manager.dart';
+import '../for_ads/utils/shared_prefrence_service.dart';
+import '../services/country_app_catalog.dart';
 
 class AndroidTvAdapter implements TvRemoteAdapter {
   static const _eventChannel = EventChannel('com.waysol.android_tv_remote_package/event');
@@ -12,6 +15,9 @@ class AndroidTvAdapter implements TvRemoteAdapter {
   String? _pkcs12Path;
   TvDevice? _currentDevice;
   HttpServer? _localServer;
+
+  @override
+  void Function()? onConnectionLost;
   final StreamController<Map<String, dynamic>> _logController = StreamController<Map<String, dynamic>>.broadcast();
   bool _nativeLogsSubscribed = false;
 
@@ -106,6 +112,14 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     try {
       final path = await _ensureCertificates();
       _addLog('INFO', '🔑 [connect] Certificate verified at: $path');
+
+      AndroidTVRemote.channel.setMethodCallHandler((call) async {
+        if (call.method == 'connectionLost') {
+          _addLog('WARN', '⚠️ Connection lost natively.');
+          onConnectionLost?.call();
+        }
+      });
+
       final success = await AndroidTVRemote.connect(
         host: device.ipAddress,
         port: device.port,
@@ -119,8 +133,13 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         _addLog('INFO', '✅ [connect] Connection successful to TV: ${device.name}!');
       }
       return success;
-    } catch (e) {
-      _addLog('ERROR', '💥 [connect] Exception occurred during connection handshake: $e');
+    } on PlatformException catch (e) {
+      if (e.code == 'NEEDS_PAIRING') {
+        _addLog('WARN', '⚠️ [connect] TV requires pairing.');
+        _currentDevice = null;
+        rethrow;
+      }
+      _addLog('ERROR', '❌ [connect] Connection failed to TV: ${device.name}');
       _currentDevice = null;
       return false;
     }
@@ -130,6 +149,8 @@ class AndroidTvAdapter implements TvRemoteAdapter {
   Future<void> disconnect() async {
     _addLog('INFO', '🔌 [disconnect] Closing session for device: ${_currentDevice?.name ?? "Unknown"}');
     await stopCasting();
+    AndroidTVRemote.channel.setMethodCallHandler(null);
+    onConnectionLost = null;
     await AndroidTVRemote.disconnect();
     _currentDevice = null;
   }
@@ -222,26 +243,42 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         break;
     }
     _addLog('INFO', '🕹️ [sendKey] Sending key command: ${key.name} -> command parameter: $command');
-    final success = await AndroidTVRemote.sendCommand(command);
-    if (success) {
-      _addLog('INFO', '✅ [sendKey] Key command parameter $command successfully sent.');
-    } else {
-      _addLog('ERROR', '❌ [sendKey] Key command parameter $command failed to send.');
+    bool success = false;
+    try {
+      success = await AndroidTVRemote.sendCommand(command);
+      if (success) {
+        _addLog('INFO', '✅ [sendKey] Key command parameter $command successfully sent.');
+      } else {
+        _addLog('ERROR', '❌ [sendKey] Key command parameter $command failed to send.');
+      }
+    } catch (e) {
+      _addLog('ERROR', '💥 [sendKey] Exception during sendCommand for $command: $e');
     }
     return success;
   }
 
   @override
   Future<List<Map<String, String>>> getInstalledApps() async {
-    return [
-      {'id': 'com.google.android.youtube.tv', 'name': 'YouTube'},
-      {'id': 'com.netflix.ninja', 'name': 'Netflix'},
-      {'id': 'com.amazon.amazonvideo.livingroom', 'name': 'Prime Video'},
-      {'id': 'com.disney.disneyplus', 'name': 'Disney+'},
-      {'id': 'com.plexapp.android', 'name': 'Plex'},
-      {'id': 'com.spotify.tv.android', 'name': 'Spotify'},
-      {'id': 'org.xbmc.kodi', 'name': 'Kodi'},
-    ];
+    _addLog('INFO', '📱 Querying installed apps for Android TV (IP: ${_currentDevice?.ipAddress ?? "Unknown"})...');
+    _addLog('WARN', '⚠️ The Android TV Remote Control Protocol v2 does not support package/app enumeration over the TLS socket connection.');
+
+    final countryCode = SharedPrefService.getCountryCode() ?? await CountryManager().getDeviceCountryCode();
+    _addLog('INFO', '🌍 Detected Country Code for Catalog: $countryCode');
+
+    final catalogApps = CountryAppCatalog().getAppsForCountry(countryCode);
+    _addLog('INFO', '📝 Returning predefined compatible TV app packages for $countryCode:');
+
+    final List<Map<String, String>> apps = catalogApps.map((app) => {
+      'id': app.id,
+      'name': app.name,
+      'iconUrl': app.iconAsset,
+    }).toList();
+
+    for (final app in apps) {
+      _addLog('INFO', '  - App: ${app['name']} (Package ID: ${app['id']})');
+    }
+
+    return apps;
   }
 
   @override
@@ -399,7 +436,14 @@ class AndroidTvAdapter implements TvRemoteAdapter {
   Future<bool> _sendSoapAction(String controlUrl, String action, String arguments) async {
     try {
       final uri = Uri.parse(controlUrl);
-      final client = HttpClient()..connectionTimeout = const Duration(seconds: 4);
+
+      // ✅ Only connectionTimeout is available
+      final timeout = action == 'SetAVTransportURI'
+          ? const Duration(seconds: 30)
+          : const Duration(seconds: 10);
+
+      final client = HttpClient()..connectionTimeout = timeout;
+
       final request = await client.postUrl(uri);
 
       final soapBody = '<?xml version="1.0" encoding="utf-8"?>'
@@ -418,7 +462,7 @@ class AndroidTvAdapter implements TvRemoteAdapter {
       request.contentLength = utf8.encode(soapBody).length;
       request.write(soapBody);
 
-      final response = await request.close();
+      final response = await request.close().timeout(timeout);  // ← Add timeout here
       client.close();
       return response.statusCode == 200;
     } catch (e) {
@@ -426,7 +470,6 @@ class AndroidTvAdapter implements TvRemoteAdapter {
       return false;
     }
   }
-
   String? _cachedControlUrl;
 
   @override
@@ -505,10 +548,10 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     }
 
     _addLog('INFO', 'Casting media to DLNA renderer: $finalUrl');
-    
+
     final setUriSuccess = await _sendSoapAction(
-      controlUrl, 
-      'SetAVTransportURI', 
+      controlUrl,
+      'SetAVTransportURI',
       '<CurrentURI>$finalUrl</CurrentURI><CurrentURIMetaData></CurrentURIMetaData>'
     );
 

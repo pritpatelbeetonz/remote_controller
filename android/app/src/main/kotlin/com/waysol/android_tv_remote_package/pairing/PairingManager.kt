@@ -3,6 +3,7 @@ package com.waysol.android_tv_remote_package.pairing
 import android.content.Context
 import android.util.Log
 import com.waysol.android_tv_remote_package.connection.TLSManager
+import com.waysol.android_tv_remote_package.protocol.MessageParser
 import com.waysol.android_tv_remote_package.protocol.ProtobufMessage
 import com.waysol.android_tv_remote_package.util.Constants
 import com.waysol.android_tv_remote_package.util.Logger
@@ -37,19 +38,24 @@ class PairingManager(
         pairingJob = scope.launch {
             try {
                 setStatus(PairingStatus.CONNECTING)
+                Logger.i(Constants.TAG_PAIRING, "Pairing started")
+                Logger.i(Constants.TAG_PAIRING, "Opening pairing socket on port ${Constants.PORT_PAIRING}")
+                Logger.i(Constants.TAG_TLS, "TLS established on port ${Constants.PORT_PAIRING}")
 
                 // 1. Send PairingRequest
                 Logger.d(Constants.TAG_PAIRING, "Sending PairingRequest...")
                 val pairingRequest = ProtobufMessage.createPairingRequest()
-                if (!tlsManager.sendData(pairingRequest)) {
+                if (!sendProtobuf(pairingRequest, "PairingRequest", "pairing_request")) {
+                    Logger.e(Constants.TAG_PAIRING, "Failed to send PairingRequest")
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
 
                 // 2. Receive PairingRequestAck
                 Logger.d(Constants.TAG_PAIRING, "Waiting for PairingRequestAck...")
-                val response1 = tlsManager.receiveData()
+                val response1 = receiveProtobuf(11, "PairingRequestAck", "pairing_request_ack")
                 if (response1 == null) {
+                    Logger.e(Constants.TAG_PAIRING, "Received null response for PairingRequestAck")
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
@@ -57,15 +63,17 @@ class PairingManager(
                 // 3. Send Options
                 Logger.d(Constants.TAG_PAIRING, "Sending Options...")
                 val options = ProtobufMessage.createOptionsMessage()
-                if (!tlsManager.sendData(options)) {
+                if (!sendProtobuf(options, "Options", "options")) {
+                    Logger.e(Constants.TAG_PAIRING, "Failed to send Options")
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
 
                 // 4. Receive Options from TV
                 Logger.d(Constants.TAG_PAIRING, "Waiting for TV Options...")
-                val response2 = tlsManager.receiveData()
+                val response2 = receiveProtobuf(20, "Options", "options")
                 if (response2 == null) {
+                    Logger.e(Constants.TAG_PAIRING, "Received null response for TV Options")
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
@@ -73,15 +81,17 @@ class PairingManager(
                 // 5. Send Configuration
                 Logger.d(Constants.TAG_PAIRING, "Sending Configuration...")
                 val config = ProtobufMessage.createConfigurationMessage()
-                if (!tlsManager.sendData(config)) {
+                if (!sendProtobuf(config, "Configuration", "configuration")) {
+                    Logger.e(Constants.TAG_PAIRING, "Failed to send Configuration")
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
 
                 // 6. Receive ConfigurationAck
                 Logger.d(Constants.TAG_PAIRING, "Waiting for ConfigurationAck...")
-                val response3 = tlsManager.receiveData()
+                val response3 = receiveProtobuf(31, "ConfigurationAck", "configuration_ack")
                 if (response3 == null) {
+                    Logger.e(Constants.TAG_PAIRING, "Received null response for ConfigurationAck")
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
@@ -98,6 +108,8 @@ class PairingManager(
     }
 
     fun sendPin(pin: String): Boolean {
+        Logger.i(Constants.TAG_PAIRING, "PIN received from Flutter: $pin")
+        Logger.i(Constants.TAG_PAIRING, "PIN length: ${pin.length}")
         if (pin.length != 6) {
             Logger.w(Constants.TAG_PAIRING, "Invalid PIN length: ${pin.length}")
             return false
@@ -106,29 +118,34 @@ class PairingManager(
         pairingJob = scope.launch {
             try {
                 setStatus(PairingStatus.PAIRING)
-                Logger.d(Constants.TAG_PAIRING, "Generating pairing signature for PIN: $pin")
+                Logger.i(Constants.TAG_PAIRING, "Generating Secret...")
 
                 // 1. Load client certificate
+                Logger.i(Constants.TAG_PAIRING, "Reading client certificate from path: $pkcs12Path")
                 val keyStore = KeyStore.getInstance("PKCS12")
                 FileInputStream(pkcs12Path).use { fis ->
                     keyStore.load(fis, "".toCharArray())
                 }
                 val alias = keyStore.aliases().nextElement()
+                Logger.i(Constants.TAG_PAIRING, "Client certificate loaded. Alias: $alias")
                 val clientCert = keyStore.getCertificate(alias) as java.security.cert.X509Certificate
                 
                 // 2. Load TV peer certificate
+                Logger.i(Constants.TAG_PAIRING, "Reading TV certificate...")
                 val serverCert = tlsManager.getPeerCertificate() ?: throw Exception("Failed to retrieve TV peer certificate")
+                Logger.i(Constants.TAG_PAIRING, "TV certificate loaded successfully")
 
-                // 3. Extract RSA mod/exp keys
-                val clientPublicKey = clientCert.publicKey as RSAPublicKey
+                // 3. Extract RSA mod/exp keys using safe casts
+                val clientPublicKey = clientCert.publicKey as? RSAPublicKey ?: throw Exception("Client key is not an RSA public key")
                 val clientModulus = clientPublicKey.modulus
                 val clientExponent = clientPublicKey.publicExponent
 
-                val serverPublicKey = serverCert.publicKey as RSAPublicKey
+                val serverPublicKey = serverCert.publicKey as? RSAPublicKey ?: throw Exception("Server key is not an RSA public key")
                 val serverModulus = serverPublicKey.modulus
                 val serverExponent = serverPublicKey.publicExponent
 
                 // 4. Compute SHA-256 HMAC PIN hash
+                Logger.i(Constants.TAG_PAIRING, "Computing SHA256 PIN hash...")
                 val h = MessageDigest.getInstance("SHA-256")
                 h.update(getUnsignedBytes(clientModulus))
                 h.update(getUnsignedBytes(clientExponent))
@@ -138,6 +155,7 @@ class PairingManager(
                 val pinSuffixHex = pin.substring(2)
                 h.update(hexStringToByteArray(pinSuffixHex))
                 val hashResult = h.digest()
+                Logger.i(Constants.TAG_PAIRING, "Secret generated successfully")
 
                 // Validate locally calculated digest
                 val firstByte = hashResult[0].toInt() and 0xFF
@@ -149,16 +167,16 @@ class PairingManager(
                 // 5. Send Secret message containing PIN hash signature
                 Logger.d(Constants.TAG_PAIRING, "Sending signed Secret bytes...")
                 val secretMsg = ProtobufMessage.createSecretMessage(hashResult)
-                if (!tlsManager.sendData(secretMsg)) {
+                if (!sendProtobuf(secretMsg, "Secret", "secret")) {
                     setStatus(PairingStatus.FAILED)
                     return@launch
                 }
 
                 // 6. Receive SecretAck
                 Logger.d(Constants.TAG_PAIRING, "Waiting for SecretAck...")
-                val response = tlsManager.receiveData()
+                val response = receiveProtobuf(41, "SecretAck", "secret_ack")
                 if (response != null) {
-                    Logger.i(Constants.TAG_PAIRING, "Pairing successful!")
+                    Logger.i(Constants.TAG_PAIRING, "Pairing successful")
                     setStatus(PairingStatus.SUCCESS)
                 } else {
                     Logger.e(Constants.TAG_PAIRING, "Pairing rejected by TV (received null response).")
@@ -171,6 +189,22 @@ class PairingManager(
             }
         }
         return true
+    }
+
+    private fun sendProtobuf(data: ByteArray, typeName: String, fieldName: String): Boolean {
+        Logger.i(Constants.TAG_PROTOBUF, "Outgoing Message\nType: $typeName\nSize: ${data.size}\nField Name: $fieldName")
+        return tlsManager.sendData(data)
+    }
+
+    private fun receiveProtobuf(expectedField: Int, typeName: String, fieldName: String): ByteArray? {
+        val data = tlsManager.receiveData() ?: return null
+        val field = MessageParser.getOuterMessageField(data)
+        Logger.i(Constants.TAG_PROTOBUF, "Incoming Message\nType: $typeName\nSize: ${data.size}\nField Name: $fieldName")
+        if (field != expectedField) {
+            Logger.e(Constants.TAG_PROTOBUF, "Unknown protobuf message\nRaw size: ${data.size}\nReason: Expected field $expectedField ($typeName), received $field")
+            return null
+        }
+        return data
     }
 
     private fun getUnsignedBytes(bi: BigInteger): ByteArray {
@@ -190,6 +224,19 @@ class PairingManager(
             i += 2
         }
         return data
+    }
+
+    private fun getMessageName(fieldId: Int): String {
+        return when (fieldId) {
+            10 -> "PairingRequest"
+            11 -> "PairingRequestAck"
+            20 -> "Options"
+            30 -> "Configuration"
+            31 -> "ConfigurationAck"
+            40 -> "Secret"
+            41 -> "SecretAck"
+            else -> "Unknown Message ($fieldId)"
+        }
     }
 
     fun getStatus(): PairingStatus = status.get()

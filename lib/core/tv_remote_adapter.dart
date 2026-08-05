@@ -106,4 +106,7 @@ abstract class TvRemoteAdapter {
 
   /// Stream of log messages from the underlying adapter/native layer.
   Stream<Map<String, dynamic>> get logs;
+
+  /// Callback triggered when connection is lost natively.
+  void Function()? onConnectionLost;
 }

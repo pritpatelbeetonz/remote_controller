@@ -22,6 +22,9 @@ class LgWebOsAdapter implements TvRemoteAdapter {
 
   LgWebOsAdapter([this._webSocketFactory]);
 
+  @override
+  void Function()? onConnectionLost;
+
   final StreamController<Map<String, dynamic>> _logController = StreamController<Map<String, dynamic>>.broadcast();
 
   void _addLog(String level, String message) {

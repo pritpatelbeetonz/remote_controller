@@ -62,6 +62,37 @@ object MessageParser {
     }
 
     /**
+     * Get the active field number of the Polo OuterMessage wrapper.
+     * Field mappings:
+     * - 10: PairingRequest
+     * - 11: PairingRequestAck
+     * - 20: Options
+     * - 30: Configuration
+     * - 31: ConfigurationAck
+     * - 40: Secret
+     * - 41: SecretAck
+     */
+    fun getOuterMessageField(data: ByteArray): Int {
+        return try {
+            val input = ByteArrayInputStream(data)
+            while (input.available() > 0) {
+                val tag = readVarint(input)
+                val fieldNumber = tag shr 3
+                val wireType = tag and 0x07
+
+                if (fieldNumber == 1 || fieldNumber == 2) {
+                    skipField(input, wireType)
+                } else {
+                    return fieldNumber
+                }
+            }
+            -1
+        } catch (e: Exception) {
+            -1
+        }
+    }
+
+    /**
      * Extract Ping Request value from TV message
      * Returns null if it is not a ping request or parsing fails
      */
@@ -106,10 +137,12 @@ object MessageParser {
     fun isConfigureRequest(data: ByteArray): Boolean {
         return try {
             val input = ByteArrayInputStream(data)
-            if (input.available() > 0) {
+            while (input.available() > 0) {
                 val tag = readVarint(input)
                 val fieldNumber = tag shr 3
-                return fieldNumber == 1
+                val wireType = tag and 0x07
+                if (fieldNumber == 1) return true
+                skipField(input, wireType)
             }
             false
         } catch (e: Exception) {
@@ -123,10 +156,12 @@ object MessageParser {
     fun isSetActiveRequest(data: ByteArray): Boolean {
         return try {
             val input = ByteArrayInputStream(data)
-            if (input.available() > 0) {
+            while (input.available() > 0) {
                 val tag = readVarint(input)
                 val fieldNumber = tag shr 3
-                return fieldNumber == 2
+                val wireType = tag and 0x07
+                if (fieldNumber == 2) return true
+                skipField(input, wireType)
             }
             false
         } catch (e: Exception) {

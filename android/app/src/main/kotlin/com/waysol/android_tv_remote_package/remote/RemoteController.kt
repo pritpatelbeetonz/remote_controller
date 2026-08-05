@@ -15,64 +15,138 @@ class RemoteController(
     private val scope = CoroutineScope(Dispatchers.Default + Job())
     private var listeningJob: Job? = null
 
-    init {
+    var onDisconnected: (() -> Unit)? = null
+    var onReady: (() -> Unit)? = null
+
+    fun start() {
         startListening()
     }
 
     private fun startListening() {
         listeningJob = scope.launch(Dispatchers.IO) {
+            Logger.d(Constants.TAG_REMOTE, "Starting background socket reading loop...")
             try {
-                Logger.d(Constants.TAG_REMOTE, "Starting background socket reading loop...")
                 while (isActive && tlsManager.isConnected()) {
-                    val data = tlsManager.receiveData() ?: break
-                    
+                    val data = try {
+                        tlsManager.receiveData()
+                    } catch (e: java.net.SocketTimeoutException) {
+                        // Expected during idle/keep-alive polling — just loop again
+                        continue
+                    } catch (e: java.net.SocketException) {
+                        Logger.e(
+                            Constants.TAG_REMOTE,
+                            "Socket closed by peer, stopping listener",
+                            e
+                        )
+                        break
+                    } catch (e: Exception) {
+                        Logger.e(
+                            Constants.TAG_REMOTE,
+                            "Unexpected receive error, stopping listener",
+                            e
+                        )
+                        break
+                    }
+
+                    if (data == null) break
+
                     // 1. Handle Ping request
                     val pingVal = MessageParser.extractPingVal(data)
                     if (pingVal != null) {
-                        Logger.d(Constants.TAG_REMOTE, "Received Ping Request ($pingVal). Replying with Pong...")
+                        Logger.d(
+                            Constants.TAG_REMOTE,
+                            "Received Ping Request ($pingVal). Replying with Pong..."
+                        )
                         val pong = ProtobufMessage.createPongMessage(pingVal)
                         tlsManager.sendData(pong)
                         continue
                     }
 
-                    // 2. Handle Configure request (Startup features handshake)
+                    // 2. Handle Configure request
                     if (MessageParser.isConfigureRequest(data)) {
-                        Logger.d(Constants.TAG_REMOTE, "Received Configure Request. Replying with client capabilities...")
-                        val configResponse = ProtobufMessage.createConfigureResponse()
-                        tlsManager.sendData(configResponse)
+                        Logger.d(
+                            Constants.TAG_REMOTE,
+                            "Received Configure Request. Replying with client capabilities..."
+                        )
+                        tlsManager.sendData(ProtobufMessage.createConfigureResponse())
                         continue
                     }
 
                     // 3. Handle Set Active request
                     if (MessageParser.isSetActiveRequest(data)) {
-                        Logger.d(Constants.TAG_REMOTE, "Received Set Active Request. Replying with active status...")
-                        val activeResponse = ProtobufMessage.createActiveResponse()
-                        tlsManager.sendData(activeResponse)
+                        Logger.d(
+                            Constants.TAG_REMOTE,
+                            "Received Set Active Request. Replying with active status..."
+                        )
+                        tlsManager.sendData(ProtobufMessage.createActiveResponse())
+                        onReady?.invoke()
                         continue
                     }
 
-                    Logger.d(Constants.TAG_REMOTE, "Received other control message from TV (size: ${data.size})")
+                    Logger.d(
+                        Constants.TAG_REMOTE,
+                        "Received other control message from TV (size: ${data.size}): ${
+                            data.joinToString(",") { (it.toInt() and 0xFF).toString() }
+                        }"
+                    )
                 }
             } catch (e: Exception) {
                 Logger.e(Constants.TAG_REMOTE, "Socket reading loop exception: ${e.message}", e)
             } finally {
                 Logger.i(Constants.TAG_REMOTE, "Socket reading loop stopped.")
+                onDisconnected?.invoke()   // see note below
             }
         }
     }
 
+    private fun getKeyName(keycode: Int): String {
+        return when (keycode) {
+            KeyCode.DPAD_UP -> "UP"
+            KeyCode.DPAD_DOWN -> "DOWN"
+            KeyCode.DPAD_LEFT -> "LEFT"
+            KeyCode.DPAD_RIGHT -> "RIGHT"
+            KeyCode.DPAD_CENTER -> "SELECT"
+            KeyCode.HOME -> "HOME"
+            KeyCode.BACK -> "BACK"
+            KeyCode.MEDIA_PLAY_PAUSE -> "PLAY_PAUSE"
+            KeyCode.MEDIA_PLAY -> "PLAY"
+            KeyCode.MEDIA_PAUSE -> "PAUSE"
+            KeyCode.VOLUME_UP -> "VOLUME_UP"
+            KeyCode.VOLUME_DOWN -> "VOLUME_DOWN"
+            KeyCode.VOLUME_MUTE -> "VOLUME_MUTE"
+            else -> "KEYCODE_$keycode"
+        }
+    }
+
     fun sendKeyCode(keycode: Int, delayMs: Long = 100): Boolean {
+        val keyName = getKeyName(keycode)
+        Logger.i(Constants.TAG_COMMAND, "Sending command: $keyName")
+        val startTime = System.currentTimeMillis()
         return try {
             // Direction 3 = SHORT press (combines down and up automatically)
             val message = ProtobufMessage.createKeycodeMessage(keycode, 3)
             val result = tlsManager.sendData(message)
+            val latency = System.currentTimeMillis() - startTime
 
             if (result) {
-                Logger.d(Constants.TAG_REMOTE, "Keycode sent: $keycode")
+                Logger.i(
+                    Constants.TAG_COMMAND,
+                    "Command $keyName sent successfully\nLatency: $latency ms\nResult: Success"
+                )
+            } else {
+                Logger.e(
+                    Constants.TAG_COMMAND,
+                    "Command $keyName failed to send\nLatency: $latency ms\nResult: Failure"
+                )
             }
             result
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_REMOTE, "Send keycode error: ${e.message}")
+            val latency = System.currentTimeMillis() - startTime
+            Logger.e(
+                Constants.TAG_COMMAND,
+                "Command $keyName failed to send\nLatency: $latency ms\nResult: Failure",
+                e
+            )
             false
         }
     }
@@ -124,15 +198,31 @@ class RemoteController(
     }
 
     fun sendAppLink(appLink: String): Boolean {
+        Logger.i(Constants.TAG_COMMAND, "Sending command: LAUNCH_APP ($appLink)")
+        val startTime = System.currentTimeMillis()
         return try {
             val message = ProtobufMessage.createAppLinkMessage(appLink)
             val result = tlsManager.sendData(message)
+            val latency = System.currentTimeMillis() - startTime
             if (result) {
-                Logger.d(Constants.TAG_REMOTE, "App link sent: $appLink")
+                Logger.i(
+                    Constants.TAG_COMMAND,
+                    "Command LAUNCH_APP sent successfully\nLatency: $latency ms\nResult: Success"
+                )
+            } else {
+                Logger.e(
+                    Constants.TAG_COMMAND,
+                    "Command LAUNCH_APP failed to send\nLatency: $latency ms\nResult: Failure"
+                )
             }
             result
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_REMOTE, "Send app link error: ${e.message}")
+            val latency = System.currentTimeMillis() - startTime
+            Logger.e(
+                Constants.TAG_COMMAND,
+                "Command LAUNCH_APP failed to send\nLatency: $latency ms\nResult: Failure",
+                e
+            )
             false
         }
     }
