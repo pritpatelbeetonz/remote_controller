@@ -24,11 +24,13 @@ object KeyCode {
     const val MEDIA_PLAY_PAUSE = 85
     const val MEDIA_NEXT = 87
     const val MEDIA_PREVIOUS = 88
+    const val MEDIA_REWIND = 89
+    const val MEDIA_FAST_FORWARD = 90
 
     // Volume
     const val VOLUME_UP = 24
     const val VOLUME_DOWN = 25
-    const val VOLUME_MUTE = 91
+    const val VOLUME_MUTE = 164
 
     // Channel
     const val CHANNEL_UP = 166

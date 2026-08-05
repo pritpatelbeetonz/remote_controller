@@ -181,4 +181,77 @@ object ProtobufMessage {
         out.write(buildLengthDelimitedField(2, activeOut.toByteArray())) // remote_set_active
         return out.toByteArray()
     }
+
+    private const val FIELD_VOICE_BEGIN = 30
+    private const val FIELD_VOICE_PAYLOAD = 31
+    private const val FIELD_VOICE_END = 32
+
+    /**
+     * Create voice begin message
+     */
+    fun createVoiceBeginMessage(sessionId: Int): ByteArray {
+        val voiceBeginOut = ByteArrayOutputStream()
+        voiceBeginOut.write(buildVarintField(1, sessionId))
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(FIELD_VOICE_BEGIN, voiceBeginOut.toByteArray()))
+        return out.toByteArray()
+    }
+
+    /**
+     * Create voice payload message
+     */
+    fun createVoicePayloadMessage(sessionId: Int, samples: ByteArray): ByteArray {
+        val voicePayloadOut = ByteArrayOutputStream()
+        voicePayloadOut.write(buildVarintField(1, sessionId))
+        voicePayloadOut.write(buildLengthDelimitedField(2, samples))
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(FIELD_VOICE_PAYLOAD, voicePayloadOut.toByteArray()))
+        return out.toByteArray()
+    }
+
+    /**
+     * Create voice end message
+     */
+    fun createVoiceEndMessage(sessionId: Int): ByteArray {
+        val voiceEndOut = ByteArrayOutputStream()
+        voiceEndOut.write(buildVarintField(1, sessionId))
+
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(FIELD_VOICE_END, voiceEndOut.toByteArray()))
+        return out.toByteArray()
+    }
+
+    private const val FIELD_IME_BATCH_EDIT = 21
+
+    /**
+     * Create IME batch edit message to transmit text (RemoteMessage wrapper)
+     */
+    fun createImeBatchEditMessage(imeCounter: Int, fieldCounter: Int, text: String): ByteArray {
+        val textLength = text.length
+        val paramValue = if (textLength > 0) textLength - 1 else 0
+
+        // 1. Build RemoteImeObject
+        val imeObjOut = ByteArrayOutputStream()
+        imeObjOut.write(buildVarintField(1, paramValue)) // start = paramValue
+        imeObjOut.write(buildVarintField(2, paramValue)) // end = paramValue
+        imeObjOut.write(buildStringField(3, text))       // value = text
+
+        // 2. Build RemoteEditInfo
+        val editInfoOut = ByteArrayOutputStream()
+        editInfoOut.write(buildVarintField(1, 1))        // insert = 1
+        editInfoOut.write(buildLengthDelimitedField(2, imeObjOut.toByteArray())) // text_field_status
+
+        // 3. Build RemoteImeBatchEdit
+        val batchEditOut = ByteArrayOutputStream()
+        batchEditOut.write(buildVarintField(1, imeCounter))   // ime_counter
+        batchEditOut.write(buildVarintField(2, fieldCounter)) // field_counter
+        batchEditOut.write(buildLengthDelimitedField(3, editInfoOut.toByteArray())) // edit_info (repeated)
+
+        // 4. Build Outer RemoteMessage wrapper
+        val out = ByteArrayOutputStream()
+        out.write(buildLengthDelimitedField(FIELD_IME_BATCH_EDIT, batchEditOut.toByteArray())) // remote_ime_batch_edit (field 21)
+        return out.toByteArray()
+    }
 }

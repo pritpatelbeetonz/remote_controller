@@ -262,6 +262,15 @@ class AppleTvAdapter implements TvRemoteAdapter {
     return false;
   }
 
+  @override
+  Future<bool> isKeyboardSupported() => Future.value(true);
+
+  @override
+  Future<bool> isTextFieldFocused() => Future.value(true);
+
+  @override
+  Future<String> getKeyboardState() => Future.value('READY');
+
   Future<String?> _getLocalIpAddress() async {
     try {
       final interfaces = await NetworkInterface.list(

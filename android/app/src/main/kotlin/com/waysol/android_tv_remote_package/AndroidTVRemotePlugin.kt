@@ -15,6 +15,8 @@ import com.waysol.android_tv_remote_package.discovery.DeviceScanner
 import com.waysol.android_tv_remote_package.pairing.PairingManager
 import com.waysol.android_tv_remote_package.pairing.PairingStatus
 import com.waysol.android_tv_remote_package.remote.RemoteController
+import com.waysol.android_tv_remote_package.remote.KeyCode
+import com.waysol.android_tv_remote_package.remote.VoiceManager
 import com.waysol.android_tv_remote_package.util.Constants
 import com.waysol.android_tv_remote_package.util.Logger
 import kotlinx.coroutines.CoroutineScope
@@ -80,6 +82,9 @@ class AndroidTVRemotePlugin(
     private var lastPassword: String? = null
 
     fun setupChannel(flutterEngine: FlutterEngine) {
+        val isDebuggable = (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        Logger.debugEnabled = isDebuggable
+
         methodChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL
@@ -175,6 +180,23 @@ class AndroidTVRemotePlugin(
             "launchApp" -> launchApp(arguments as String, wrappedResult)
             "sendText" -> sendText(arguments as String, wrappedResult)
             "disconnect" -> disconnect(wrappedResult)
+            "voiceStart" -> startVoice(wrappedResult)
+            "voiceStop" -> stopVoice(wrappedResult)
+            "isKeyboardSupported" -> {
+                val controller = remoteController
+                val supported = controller?.isKeyboardSupported() ?: false
+                wrappedResult.success(mapOf("success" to true, "supported" to supported))
+            }
+            "isTextFieldFocused" -> {
+                val controller = remoteController
+                val focused = controller?.isTextFieldFocused() ?: false
+                wrappedResult.success(mapOf("success" to true, "focused" to focused))
+            }
+            "getKeyboardState" -> {
+                val controller = remoteController
+                val state = controller?.getKeyboardState() ?: RemoteController.KeyboardState.UNKNOWN
+                wrappedResult.success(mapOf("success" to true, "state" to state.name))
+            }
             else -> wrappedResult.notImplemented()
         }
     }
@@ -684,6 +706,9 @@ class AndroidTVRemotePlugin(
                     "play_pause" -> controller.sendPlayPause()
                     "volume_up" -> controller.sendVolumeUp()
                     "volume_down" -> controller.sendVolumeDown()
+                    "volume_mute" -> controller.sendVolumeMute()
+                    "media_next", "next" -> controller.sendNext()
+                    "media_previous", "previous" -> controller.sendPrevious()
                     else -> false
                 }
                 Logger.d(
@@ -724,16 +749,35 @@ class AndroidTVRemotePlugin(
     private fun sendText(text: String, result: MethodChannel.Result) {
         socketExecutor.execute {
             try {
-                Logger.d(Constants.TAG_PLUGIN, "Send text requested: $text")
-                val controller = ensureRemoteControllerReady(timeoutSec = 3)
+                Logger.d(Constants.TAG_PLUGIN, "⌨️ Keyboard: Sending text: \"$text\"")
+                val controller = remoteController
+                if (controller == null || !controller.isConnected()) {
+                    Handler(Looper.getMainLooper()).post {
+                        result.error("CONNECTION_LOST", "No active TV connection", null)
+                    }
+                    return@execute
+                }
+                if (!controller.isKeyboardSupported()) {
+                    Handler(Looper.getMainLooper()).post {
+                        result.error("KEYBOARD_NOT_SUPPORTED", "Android TV does not support IME keyboard inputs", null)
+                    }
+                    return@execute
+                }
                 val success = controller.sendText(text)
-                Logger.d(Constants.TAG_PLUGIN, "Send text command sent. Success=$success")
-                Handler(Looper.getMainLooper()).post {
-                    result.success(mapOf("success" to success))
+                if (success) {
+                    Logger.d(Constants.TAG_PLUGIN, "✅ IME message transmitted successfully. Character count: ${text.length}")
+                    Handler(Looper.getMainLooper()).post {
+                        result.success(mapOf("success" to true))
+                    }
+                } else {
+                    Logger.e(Constants.TAG_PLUGIN, "❌ TV rejected IME message or transmission failed")
+                    Handler(Looper.getMainLooper()).post {
+                        result.error("COMMAND_ERROR", "TV rejected IME message", null)
+                    }
                 }
             } catch (e: Exception) {
                 Handler(Looper.getMainLooper()).post {
-                    Logger.e(Constants.TAG_PLUGIN, "Exception during sendText", e)
+                    Logger.e(Constants.TAG_PLUGIN, "❌ Unexpected keyboard session error: ${e.message}", e)
                     result.error("COMMAND_ERROR", e.message, null)
                 }
             }
@@ -759,6 +803,131 @@ class AndroidTVRemotePlugin(
         } catch (e: Exception) {
             Logger.e(Constants.TAG_PLUGIN, "Exception during disconnect", e)
             result.error("DISCONNECT_ERROR", e.message, null)
+        }
+    }
+
+    private var voiceManager: VoiceManager? = null
+    private var voiceSessionId: Int? = null
+
+    private fun startVoice(result: MethodChannel.Result) {
+        Logger.i(Constants.TAG_PLUGIN, "🎙️ Voice session requested")
+
+        val controller = remoteController
+        if (controller == null) {
+            Logger.e(Constants.TAG_PLUGIN, "❌ Connection lost: Remote controller is null")
+            result.error("CONNECTION_LOST", "Remote controller not connected", null)
+            return
+        }
+
+        // 1. Check if TV supports Voice Search
+        if (!controller.isVoiceSupported()) {
+            Logger.e(Constants.TAG_PLUGIN, "❌ Device does not support Voice Search")
+            result.error("VOICE_NOT_SUPPORTED", "Device does not support Voice Search", null)
+            return
+        }
+
+        // 2. Check microphone permission
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.RECORD_AUDIO
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            Logger.e(Constants.TAG_PLUGIN, "❌ Permission denied for microphone recording")
+            result.error("PERMISSION_DENIED", "Microphone permission denied", null)
+            return
+        }
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                val readyLock = java.util.concurrent.CountDownLatch(1)
+                var session: Int? = null
+
+                controller.onVoiceBegin = { sid ->
+                    session = sid
+                    readyLock.countDown()
+                }
+
+                Logger.i(Constants.TAG_PLUGIN, "🔍 KEYCODE_SEARCH sent")
+                val searchSuccess = controller.sendKeyCode(KeyCode.SEARCH)
+                if (!searchSuccess) {
+                    controller.onVoiceBegin = null
+                    Handler(Looper.getMainLooper()).post {
+                        Logger.e(Constants.TAG_PLUGIN, "❌ Unexpected voice session error: Failed to send KEYCODE_SEARCH")
+                        result.error("AUDIO_RECORD_ERROR", "Failed to send SEARCH keycode", null)
+                    }
+                    return@launch
+                }
+
+                Logger.i(Constants.TAG_PLUGIN, "⏳ Waiting for RemoteVoiceBegin...")
+                val received = readyLock.await(2, java.util.concurrent.TimeUnit.SECONDS)
+                controller.onVoiceBegin = null
+
+                val activeSession = session
+                if (received && activeSession != null) {
+                    Logger.i(Constants.TAG_PLUGIN, "📥 RemoteVoiceBegin received")
+                    Logger.i(Constants.TAG_PLUGIN, "🆔 Session ID assigned: $activeSession")
+                    voiceSessionId = activeSession
+
+                    // Reply to TV with Voice Begin
+                    controller.sendVoiceBegin(activeSession)
+
+                    if (voiceManager == null) {
+                        voiceManager = VoiceManager(context, controller)
+                    }
+
+                    val recordingStarted = voiceManager?.startRecording(activeSession) == true
+                    if (recordingStarted) {
+                        Handler(Looper.getMainLooper()).post {
+                            result.success(mapOf("success" to true, "sessionId" to activeSession))
+                        }
+                    } else {
+                        Handler(Looper.getMainLooper()).post {
+                            result.error("AUDIO_RECORD_ERROR", "Failed to start AudioRecord", null)
+                        }
+                    }
+                } else {
+                    Handler(Looper.getMainLooper()).post {
+                        Logger.e(Constants.TAG_PLUGIN, "❌ Voice session setup timed out")
+                        result.error("TIMEOUT", "Voice session setup timed out", null)
+                    }
+                }
+            } catch (e: Exception) {
+                controller.onVoiceBegin = null
+                Handler(Looper.getMainLooper()).post {
+                    Logger.e(Constants.TAG_PLUGIN, "❌ Unexpected voice session error: ${e.message}", e)
+                    result.error("AUDIO_RECORD_ERROR", e.message, null)
+                }
+            }
+        }
+    }
+
+    private fun stopVoice(result: MethodChannel.Result) {
+        val controller = remoteController
+        if (controller == null) {
+            result.error("CONNECTION_LOST", "Remote controller not connected", null)
+            return
+        }
+
+        val sessionId = voiceSessionId
+        if (sessionId == null) {
+            result.success(mapOf("success" to true, "message" to "No active voice session"))
+            return
+        }
+
+        scope.launch(Dispatchers.IO) {
+            try {
+                voiceManager?.stopRecording()
+                controller.sendVoiceEnd(sessionId)
+                Logger.i(Constants.TAG_PLUGIN, "📤 RemoteVoiceEnd sent")
+                voiceSessionId = null
+                Handler(Looper.getMainLooper()).post {
+                    result.success(mapOf("success" to true))
+                }
+            } catch (e: Exception) {
+                Handler(Looper.getMainLooper()).post {
+                    Logger.e(Constants.TAG_PLUGIN, "❌ Unexpected voice session error: ${e.message}", e)
+                    result.error("AUDIO_RECORD_ERROR", e.message, null)
+                }
+            }
         }
     }
 

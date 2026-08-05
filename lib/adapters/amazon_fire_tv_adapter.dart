@@ -452,6 +452,15 @@ class AmazonFireTvAdapter implements TvRemoteAdapter {
   }
 
   @override
+  Future<bool> isKeyboardSupported() => Future.value(true);
+
+  @override
+  Future<bool> isTextFieldFocused() => Future.value(true);
+
+  @override
+  Future<String> getKeyboardState() => Future.value('READY');
+
+  @override
   Future<bool> castMedia({
     required String url,
     required String type,

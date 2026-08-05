@@ -68,6 +68,7 @@ class _RemoteScreenState extends State<RemoteScreen>
   bool _isNavigating = false;
   late final List<String> _activeTabs;
   bool _wasConnected = false;
+  bool _isVoiceRecording = false;
 
   @override
   void initState() {
@@ -118,6 +119,77 @@ class _RemoteScreenState extends State<RemoteScreen>
       return;
     }
     widget.manager.sendPress(key);
+  }
+
+  Future<void> _startVoiceSession() async {
+    if (widget.manager.connectionState != TvConnectionState.connected) {
+      _showNotConnectedSnackBar();
+      return;
+    }
+    if (!_isAndroidTv) {
+      _showToast("Voice search is only supported on Android TV devices");
+      return;
+    }
+
+    // Check & request microphone permission
+    var status = await Permission.microphone.status;
+    if (!status.isGranted) {
+      status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        _showToast("Microphone permission is required for voice search", backgroundColor: AppTheme.error);
+        return;
+      }
+    }
+
+    try {
+      final res = await const MethodChannel('com.waysol.android_tv_remote_package/method')
+          .invokeMethod('voiceStart');
+      if (res != null && res['success'] == true) {
+        setState(() {
+          _isVoiceRecording = true;
+        });
+        HapticFeedback.heavyImpact();
+        _showToast("🎙️ Listening... Speak now", backgroundColor: AppTheme.success);
+      }
+    } on PlatformException catch (e) {
+      String errorMsg = "Failed to start voice search";
+      switch (e.code) {
+        case 'VOICE_NOT_SUPPORTED':
+          errorMsg = "Voice search is not supported by this TV device.";
+          break;
+        case 'PERMISSION_DENIED':
+          errorMsg = "Microphone permission is required.";
+          break;
+        case 'TIMEOUT':
+          errorMsg = "TV did not respond. Please try again.";
+          break;
+        case 'CONNECTION_LOST':
+          errorMsg = "TV connection lost.";
+          break;
+        case 'AUDIO_RECORD_ERROR':
+          errorMsg = "Microphone hardware error.";
+          break;
+      }
+      _showToast(errorMsg, backgroundColor: AppTheme.error);
+    } catch (e) {
+      _showToast("Error starting voice: $e", backgroundColor: AppTheme.error);
+    }
+  }
+
+  Future<void> _stopVoiceSession() async {
+    if (!_isVoiceRecording) return;
+    try {
+      await const MethodChannel('com.waysol.android_tv_remote_package/method')
+          .invokeMethod('voiceStop');
+    } catch (e) {
+      // Ignore
+    } finally {
+      setState(() {
+        _isVoiceRecording = false;
+      });
+      HapticFeedback.mediumImpact();
+      _showToast("Recording sent to TV", backgroundColor: AppTheme.primary);
+    }
   }
 
   void _showToast(String msg, {Color? backgroundColor}) {
@@ -376,14 +448,61 @@ class _RemoteScreenState extends State<RemoteScreen>
   }
 
   // Keyboard Submission
-  void _onKeyboardSubmit(String text) {
+  Future<void> _onKeyboardSubmit(String text) async {
     if (text.isEmpty) return;
+
+    if (widget.manager.connectionState != TvConnectionState.connected) {
+      _showToast("Connection to the TV has been lost.", backgroundColor: AppTheme.error);
+      return;
+    }
+
+    final state = await widget.manager.activeAdapter?.getKeyboardState() ?? 'UNKNOWN';
+    if (state == 'NO_TEXT_FIELD') {
+      _showToast("Open a search box or text field on your TV first.", backgroundColor: AppTheme.warning);
+      return;
+    } else if (state == 'CONNECTION_LOST') {
+      _showToast("Connection to the TV has been lost.", backgroundColor: AppTheme.error);
+      return;
+    } else if (state == 'NOT_SUPPORTED') {
+      _showToast("Keyboard input is not supported on this device.", backgroundColor: AppTheme.error);
+      return;
+    }
+
     if (_sendCharByChar) {
       // Sent already, just clear
       _keyboardController.clear();
     } else {
       widget.manager.sendText(text);
       _keyboardController.clear();
+    }
+  }
+
+  Future<void> _checkKeyboardAndShowModal() async {
+    if (widget.manager.connectionState != TvConnectionState.connected) {
+      _showToast("Connection to the TV has been lost.", backgroundColor: AppTheme.error);
+      return;
+    }
+
+    // Query state from adapter
+    final state = await widget.manager.activeAdapter?.getKeyboardState() ?? 'UNKNOWN';
+
+    switch (state) {
+      case 'CONNECTION_LOST':
+        _showToast("Connection to the TV has been lost.", backgroundColor: AppTheme.error);
+        break;
+      case 'NOT_SUPPORTED':
+        _showToast("Keyboard input is not supported on this device.", backgroundColor: AppTheme.error);
+        break;
+      case 'NO_TEXT_FIELD':
+        _showToast("Open a search box or text field on your TV first.", backgroundColor: AppTheme.warning);
+        break;
+      case 'READY':
+        _showKeyboardModal();
+        break;
+      default:
+        // Default fallback if we cannot determine, try showing anyway
+        _showKeyboardModal();
+        break;
     }
   }
 
@@ -713,6 +832,28 @@ class _RemoteScreenState extends State<RemoteScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              // MicroPhone Button
+              GestureDetector(
+                onTapDown: (_) => _startVoiceSession(),
+                onTapUp: (_) => _stopVoiceSession(),
+                onTapCancel: () => _stopVoiceSession(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: _isVoiceRecording
+                        ? AppTheme.glowShadow(AppTheme.success)
+                        : null,
+                  ),
+                  child: Image.asset(
+                    'assets/home/microhphone.png',
+                    width: 56,
+                    height: 56,
+                    color: _isVoiceRecording ? AppTheme.success : null,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
               // D-pad & Trackpad toggle pill
               Container(
                 width: 145.w,
@@ -874,7 +1015,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                       assetPath: 'assets/home/keyboard.png',
                       onPressed: () {
                         if (AdsVariable.isPurchase) {
-                          _showKeyboardModal();
+                          _checkKeyboardAndShowModal();
                         } else {
                           Navigator.push(
                             context,
@@ -882,7 +1023,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                               builder: (context) => PremiumCreditView(
                                 onboarding: false,
                                 onDone: () {
-                                  _showKeyboardModal();
+                                  _checkKeyboardAndShowModal();
                                 },
                               ),
                             ),
@@ -962,7 +1103,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
-                    assetPath: 'assets/home/star.png',
+                    assetPath: 'assets/home/Media_next.png',
                     onPressed: () {
                       if (AdsVariable.isPurchase) {
                         _sendAction(TvKey.options);
@@ -1052,7 +1193,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                   ),
                   const SizedBox(width: 12),
                   _buildGridButton(
-                    assetPath: 'assets/home/restart.png',
+                    assetPath: 'assets/home/media_previous.png',
                     onPressed: () {
                       if (AdsVariable.isPurchase) {
                         _sendAction(TvKey.info);

@@ -324,6 +324,15 @@ class RokuAdapter implements TvRemoteAdapter {
     }
   }
 
+  @override
+  Future<bool> isKeyboardSupported() => Future.value(true);
+
+  @override
+  Future<bool> isTextFieldFocused() => Future.value(true);
+
+  @override
+  Future<String> getKeyboardState() => Future.value('READY');
+
   HttpServer? _localServer;
 
   Future<String?> _getLocalIpAddress() async {

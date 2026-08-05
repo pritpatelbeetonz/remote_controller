@@ -12,11 +12,55 @@ class RemoteController(
     private val tlsManager: TLSManager
 ) {
 
+    enum class KeyboardState {
+        READY,
+        NOT_SUPPORTED,
+        NO_TEXT_FIELD,
+        CONNECTION_LOST,
+        UNKNOWN
+    }
+
     private val scope = CoroutineScope(Dispatchers.Default + Job())
     private var listeningJob: Job? = null
 
     var onDisconnected: (() -> Unit)? = null
     var onReady: (() -> Unit)? = null
+    var onVoiceBegin: ((Int) -> Unit)? = null
+    private var tvSupportedFeatures: Int = 0
+
+    private var imeCounter: Int = 0
+    private var imeFieldCounter: Int = 0
+    private var isTextFieldFocused: Boolean = false
+
+    fun isConnected(): Boolean {
+        return tlsManager.isConnected()
+    }
+
+    fun isVoiceSupported(): Boolean {
+        return (tvSupportedFeatures and 8) != 0
+    }
+
+    fun isKeyboardSupported(): Boolean {
+        return (tvSupportedFeatures and 4) != 0
+    }
+
+    fun isTextFieldFocused(): Boolean {
+        return isTextFieldFocused
+    }
+
+    fun getKeyboardState(): KeyboardState {
+        if (!isConnected()) {
+            return KeyboardState.CONNECTION_LOST
+        }
+        if (!isKeyboardSupported()) {
+            return KeyboardState.NOT_SUPPORTED
+        }
+        return if (isTextFieldFocused) {
+            KeyboardState.READY
+        } else {
+            KeyboardState.NO_TEXT_FIELD
+        }
+    }
 
     fun start() {
         startListening()
@@ -68,6 +112,14 @@ class RemoteController(
                             Constants.TAG_REMOTE,
                             "Received Configure Request. Replying with client capabilities..."
                         )
+                        val features = MessageParser.parseConfigureFeatures(data)
+                        if (features != null) {
+                            tvSupportedFeatures = features
+                            Logger.i(
+                                Constants.TAG_REMOTE,
+                                "TV advertised supported features: $features (voice supported: ${isVoiceSupported()})"
+                            )
+                        }
                         tlsManager.sendData(ProtobufMessage.createConfigureResponse())
                         continue
                     }
@@ -80,6 +132,39 @@ class RemoteController(
                         )
                         tlsManager.sendData(ProtobufMessage.createActiveResponse())
                         onReady?.invoke()
+                        continue
+                    }
+
+                    // 4. Handle Voice Begin request
+                    val voiceSessionId = MessageParser.extractVoiceBeginSessionId(data)
+                    if (voiceSessionId != null) {
+                        Logger.i(Constants.TAG_REMOTE, "📥 Received RemoteVoiceBegin session ID: $voiceSessionId")
+                        onVoiceBegin?.invoke(voiceSessionId)
+                        continue
+                    }
+
+                    // 5. Handle Voice End request
+                    val voiceEndSessionId = MessageParser.extractVoiceEndSessionId(data)
+                    if (voiceEndSessionId != null) {
+                        Logger.i(Constants.TAG_REMOTE, "📥 Received RemoteVoiceEnd session ID: $voiceEndSessionId")
+                        continue
+                    }
+
+                    // 6. Handle IME Batch Edit (field 21) from TV to update counters
+                    val counters = MessageParser.extractImeCounters(data)
+                    if (counters != null) {
+                        imeCounter = counters.imeCounter
+                        imeFieldCounter = counters.fieldCounter
+                        isTextFieldFocused = true
+                        Logger.i(Constants.TAG_REMOTE, "⌨️ Received IME Batch Edit. Updated counters: ime_counter=$imeCounter, field_counter=$imeFieldCounter")
+                        continue
+                    }
+
+                    // 7. Handle IME Show Request (field 22) from TV to track focus
+                    val focusState = MessageParser.parseImeShowRequest(data)
+                    if (focusState != null) {
+                        isTextFieldFocused = focusState.isFocused
+                        Logger.i(Constants.TAG_REMOTE, "⌨️ Keyboard Show Request received. isFocused=$isTextFieldFocused, text=\"${focusState.text}\"")
                         continue
                     }
 
@@ -181,16 +266,20 @@ class RemoteController(
 
     // Text input
     fun sendText(text: String): Boolean {
+        Logger.i(Constants.TAG_COMMAND, "⌨️ Sending IME text: \"$text\"")
+        if (!isKeyboardSupported()) {
+            Logger.w(Constants.TAG_COMMAND, "❌ TV does not support IME input method")
+            return false
+        }
         return try {
-            for (char in text.uppercase()) {
-                val keycode = when (char) {
-                    in 'A'..'Z' -> KeyCode.A + (char - 'A')
-                    in '0'..'9' -> KeyCode.NUM_0 + (char - '0')
-                    else -> continue
-                }
-                sendKeyCode(keycode, 50)
+            val message = ProtobufMessage.createImeBatchEditMessage(imeCounter, imeFieldCounter, text)
+            val result = tlsManager.sendData(message)
+            if (result) {
+                Logger.i(Constants.TAG_COMMAND, "✅ Transmitted IME message: \"$text\" (size: ${text.length})")
+            } else {
+                Logger.e(Constants.TAG_COMMAND, "❌ Failed to transmit IME message: \"$text\"")
             }
-            true
+            result
         } catch (e: Exception) {
             Logger.e(Constants.TAG_REMOTE, "Send text error: ${e.message}")
             false
@@ -225,6 +314,22 @@ class RemoteController(
             )
             false
         }
+    }
+    fun sendVoiceBegin(sessionId: Int): Boolean {
+        Logger.i(Constants.TAG_COMMAND, "📤 Sending RemoteVoiceBegin for session $sessionId")
+        val message = ProtobufMessage.createVoiceBeginMessage(sessionId)
+        return tlsManager.sendData(message)
+    }
+
+    fun sendVoicePayload(sessionId: Int, samples: ByteArray): Boolean {
+        val message = ProtobufMessage.createVoicePayloadMessage(sessionId, samples)
+        return tlsManager.sendData(message)
+    }
+
+    fun sendVoiceEnd(sessionId: Int): Boolean {
+        Logger.i(Constants.TAG_COMMAND, "📤 Sending RemoteVoiceEnd for session $sessionId")
+        val message = ProtobufMessage.createVoiceEndMessage(sessionId)
+        return tlsManager.sendData(message)
     }
 
     fun destroy() {

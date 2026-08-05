@@ -233,10 +233,10 @@ class AndroidTvAdapter implements TvRemoteAdapter {
         command = 'fast_forward';
         break;
       case TvKey.options:
-        command = 'menu';
+        command = 'media_next';
         break;
       case TvKey.info:
-        command = 'info';
+        command = 'media_previous';
         break;
       case TvKey.inputSource:
         command = 'source';
@@ -315,6 +315,39 @@ class AndroidTvAdapter implements TvRemoteAdapter {
     } catch (e) {
       _addLog('ERROR', '💥 [sendText] Exception during sendText: $e');
       return false;
+    }
+  }
+
+  @override
+  Future<bool> isKeyboardSupported() async {
+    try {
+      final res = await AndroidTVRemote.channel.invokeMethod('isKeyboardSupported');
+      return (res as Map?)?['supported'] == true;
+    } catch (e) {
+      _addLog('ERROR', '💥 [isKeyboardSupported] Exception: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> isTextFieldFocused() async {
+    try {
+      final res = await AndroidTVRemote.channel.invokeMethod('isTextFieldFocused');
+      return (res as Map?)?['focused'] == true;
+    } catch (e) {
+      _addLog('ERROR', '💥 [isTextFieldFocused] Exception: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<String> getKeyboardState() async {
+    try {
+      final res = await AndroidTVRemote.channel.invokeMethod('getKeyboardState');
+      return (res as Map?)?['state'] as String? ?? 'UNKNOWN';
+    } catch (e) {
+      _addLog('ERROR', '💥 [getKeyboardState] Exception: $e');
+      return 'UNKNOWN';
     }
   }
 
