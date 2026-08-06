@@ -34,4 +34,14 @@ class SharedPrefService {
     return sharedPreferences.getBool('usedFreePlan') ?? false;
   }
 
+  static const String keyCountryCode = 'device_country_code';
+
+  static Future<void> setCountryCode(String countryCode) async {
+    await sharedPreferences.setString(keyCountryCode, countryCode);
+  }
+
+  static String? getCountryCode() {
+    return sharedPreferences.getString(keyCountryCode);
+  }
+
 }

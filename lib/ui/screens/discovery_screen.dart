@@ -1,17 +1,34 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:get/get.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:remote_controller/for_ads/utils/firebase_analysis.dart';
 import '../../core/tv_remote_adapter.dart';
 import '../../core/tv_remote_manager.dart';
+import '../../for_ads/utils/app_constants.dart';
+import '../../for_ads/utils/shared_prefrence_service.dart';
 import '../themes/app_theme.dart';
 import '../widgets/log_console_drawer.dart';
 import 'pairing_screen.dart';
+import 'package:lottie/lottie.dart';
 import 'remote_screen.dart';
+import 'package:remote_controller/for_ads/ads/ads_variable.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../core/onboarding/onboarding_keys.dart';
+import '../../core/onboarding/onboarding_service.dart';
+import 'brand_selection_screen.dart';
 
 class DiscoveryScreen extends StatefulWidget {
   final TvRemoteManager manager;
   final String selectedBrand;
 
-  const DiscoveryScreen({Key? key, required this.manager, required this.selectedBrand}) : super(key: key);
+  const DiscoveryScreen({
+    Key? key,
+    required this.manager,
+    required this.selectedBrand,
+  }) : super(key: key);
 
   @override
   State<DiscoveryScreen> createState() => _DiscoveryScreenState();
@@ -24,11 +41,17 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   bool _showLogs = false;
   Timer? _scanTimer;
   late String _selectedBrand;
+  bool _isNavigating = false;
 
   @override
   void initState() {
+    FirebaseAnalyticsService.logEvent(eventName: 'DISCOVERY_SCREEN');
     super.initState();
-    _selectedBrand = widget.selectedBrand;
+    if (SharedPrefService.getIsFirstTime()) {
+      SharedPrefService.setIsFirstTime(false);
+      showLog("Entered First page");
+    }
+    _selectedBrand = widget.selectedBrand == 'All' ? 'Android TV' : widget.selectedBrand;
     String initialPort;
     if (_selectedBrand == 'Samsung Tizen') {
       initialPort = '8002';
@@ -48,6 +71,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         widget.manager.startScan();
+        OnboardingService().startTutorialIfNeeded(
+          context,
+          tutorialId: 'discovery_screen_tutorial',
+          keys: [
+            OnboardingKeys.discoveryAreaKey,
+            OnboardingKeys.connectManuallyButtonKey,
+            OnboardingKeys.ipAddressFieldKey,
+          ],
+        );
       }
     });
     widget.manager.addListener(_onStateChange);
@@ -56,12 +88,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     _scanTimer = Timer(const Duration(minutes: 2), () {
       if (mounted) {
         if (widget.manager.discoveredDevices.isEmpty) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => RemoteScreen(manager: widget.manager),
-            ),
-          );
+          Get.off(() => RemoteScreen(manager: widget.manager));
         }
       }
     });
@@ -82,23 +109,17 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       setState(() {});
     }
 
+    if (_isNavigating) return;
+
     if (widget.manager.connectionState == TvConnectionState.connected) {
+      _isNavigating = true;
       _scanTimer?.cancel();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RemoteScreen(manager: widget.manager),
-        ),
-      );
+      Get.off(() => RemoteScreen(manager: widget.manager));
     } else if (widget.manager.connectionState == TvConnectionState.pairing) {
+      _isNavigating = true;
       _scanTimer?.cancel();
       // Transition to pairing screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PairingScreen(manager: widget.manager),
-        ),
-      );
+      Get.off(() => PairingScreen(manager: widget.manager));
     }
   }
 
@@ -106,14 +127,12 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     final ip = _ipController.text.trim();
     final portStr = _portController.text.trim();
     if (ip.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a valid IP address'),
-          backgroundColor: AppTheme.error,
-        ),
+      Fluttertoast.showToast(
+        msg: 'Please enter a valid IP address',
+        backgroundColor: AppTheme.error,
+        textColor: Colors.white,
       );
       return;
-      
     }
     final port = int.tryParse(portStr) ?? 6466;
 
@@ -132,153 +151,737 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   @override
   Widget build(BuildContext context) {
     final manager = widget.manager;
-
-    return Scaffold(
+    return Stack(
+      children: [
+        WillPopScope(
+          onWillPop: () async => false,
+          child: Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text(
-          'CONNECT DEVICE',
+        title: Text(
+          'Connect Device',
           style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            letterSpacing: 1.5,
+            fontWeight: FontWeight.w500,
+            fontSize: 20.sp,
+            fontFamily: 'SF Pro Display',
+            //letterSpacing: 1.5,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
+        scrolledUnderElevation: 0,
+        leading: widget.selectedBrand == 'All'
+            ? null
+            : IconButton(
+                onPressed: () {
+                  AdsVariable.onShowAds(
+                    context,
+                    onComplete: () {
+                      Get.back();
+                    },
+                  );
+                },
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
         actions: [
-          IconButton(
-            icon: Icon(
-              Icons.terminal,
-              color: _showLogs ? AppTheme.primary : Colors.white54,
-            ),
+          TextButton(
             onPressed: () {
-              setState(() {
-                _showLogs = !_showLogs;
-              });
+              AdsVariable.onShowAds(
+                context,
+                onComplete: () {
+                  widget.manager.stopScan();
+                  Get.offAll(() => RemoteScreen(manager: widget.manager));
+                },
+              );
             },
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16.sp,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'SF Pro Display',
+              ),
+            ),
           ),
-          IconButton(
-            icon: Icon(
-              manager.isScanning ? Icons.stop : Icons.refresh,
-              color: AppTheme.primary,
-            ),
-            onPressed: () {
-              if (manager.isScanning) {
-                manager.stopScan();
-              } else {
-                manager.startScan();
-              }
-            },
-          )
+          SizedBox(width: 16.w),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Scanning Header status
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: [
-                  if (manager.isScanning) ...[
-                    const SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
-                        strokeWidth: 3,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Scanning Local WiFi Network...',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ] else ...[
-                    const Icon(Icons.tv_off, color: Colors.white24, size: 48),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Scanning Stopped',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white54),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Text(
-                    'Ensure your ${widget.selectedBrand} is connected to the same local Wi-Fi network.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-
-            // Discovered Devices list
-            Expanded(
-              child: () {
-                final displayedDevices = manager.discoveredDevices
-                    .where((d) => d.brand == widget.selectedBrand)
-                    .toList();
-                return displayedDevices.isEmpty
-                    ? (_showManualInput ? _buildManualInputForm() : _buildScanningPlaceholder())
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: displayedDevices.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == displayedDevices.length) {
-                            // Show manual input form at the bottom of the list
-                            return Column(
-                              children: [
-                                const Divider(color: AppTheme.border, height: 32),
-                                _buildManualInputSection(),
-                                const SizedBox(height: 20),
-                              ],
-                            );
-                          }
-
-                          final device = displayedDevices[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            color: AppTheme.surface,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              leading: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.surfaceElevated,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.tv, color: AppTheme.primary),
-                              ),
-                              title: Text(
-                                device.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Text('${device.brand} • ${device.ipAddress}:${device.port}'),
-                              trailing: const Icon(Icons.chevron_right, color: AppTheme.primary),
-                              onTap: () {
-                                manager.connectToDevice(device);
-                              },
-                            ),
-                          );
-                        },
-                      );
-              }(),
-            ),
-
-            // Logs console drawer at the bottom
-            if (_showLogs)
-              LogConsoleDrawer(
-                manager: manager,
-                onClose: () {
-                  setState(() {
-                    _showLogs = false;
-                  });
-                },
-              ),
-          ],
+      body: Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage("assets/home/bg.png"),
+          fit: BoxFit.cover,
         ),
       ),
+      child: SafeArea(
+        child: Builder(
+          builder: (context) {
+            if (!manager.isWifiConnected && !manager.bypassAuthentication && !manager.bypassToPairing) {
+              return _buildWifiDisconnectedView();
+            }
+
+            final displayedDevices = widget.selectedBrand == 'All'
+                ? manager.discoveredDevices
+                : manager.discoveredDevices
+                    .where((d) => d.brand == widget.selectedBrand)
+                    .toList();
+
+            if (_showManualInput && displayedDevices.isEmpty) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(height: 10.h),
+                    const Center(child: RadarIndicator()),
+                    SizedBox(height: 24.h),
+                    Center(
+                      child: Text(
+                        widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22.sp,
+                          fontFamily: 'SF Pro Display',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Center(
+                      child: Text(
+                        'Make sure both your phone and TV are connected \n to the same Wi-Fi.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 15.sp,
+                          fontFamily: 'SF Pro Display',
+                          fontWeight: FontWeight.w400,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 30.h),
+                    Text(
+                      'TV Brand',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 14.sp,
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedBrand,
+                        dropdownColor: const Color(0xFF1E1E1E),
+                        style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E1E),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14.r),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'Android TV', child: Text('Android TV / Google TV')),
+                          DropdownMenuItem(value: 'Samsung Tizen', child: Text('Samsung Tizen TV')),
+                          DropdownMenuItem(value: 'LG webOS', child: Text('LG Smart TV (webOS)')),
+                          DropdownMenuItem(value: 'Roku', child: Text('Roku TV')),
+                          DropdownMenuItem(value: 'Amazon Fire TV', child: Text('Amazon Fire TV')),
+                          DropdownMenuItem(value: 'Apple TV', child: Text('Apple TV')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _selectedBrand = val;
+                              if (val == 'Samsung Tizen') {
+                                _portController.text = '8002';
+                              } else if (val == 'LG webOS') {
+                                _portController.text = '3000';
+                              } else if (val == 'Roku') {
+                                _portController.text = '8060';
+                              } else if (val == 'Amazon Fire TV') {
+                                _portController.text = '8080';
+                              } else if (val == 'Apple TV') {
+                                _portController.text = '7000';
+                              } else {
+                                _portController.text = '6466';
+                              }
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'TV IP Address',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 14.sp,
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Showcase(
+                      key: OnboardingKeys.ipAddressFieldKey,
+
+                      title: "Enter TV IP Address",
+
+                      description:
+                      "Enter your TV's IP address here,\nthen tap Connect to pair with your TV.",
+
+                      tooltipBackgroundColor: const Color(0xFF202124),
+                      textColor: Colors.white,
+
+                      tooltipBorderRadius: BorderRadius.circular(24.r),
+
+                      titleTextStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'SF Pro Display',
+                        letterSpacing: 0.2,
+                      ),
+
+                      descTextStyle: TextStyle(
+                        color: Colors.white.withOpacity(.75),
+                        fontSize: 14.sp,
+                        height: 1.45,
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w400,
+                      ),
+
+                      targetShapeBorder: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+
+                      tooltipPadding: EdgeInsets.symmetric(
+                        horizontal: 20.w,
+                        vertical: 18.h,
+                      ),
+
+                      tooltipActions: [
+                        TooltipActionButton(
+                          type: TooltipDefaultActionType.previous,
+                          backgroundColor: const Color(0xFF2A2A2E),
+                          textStyle: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                        ),
+
+                        TooltipActionButton(
+                          type: TooltipDefaultActionType.skip,
+                          name: "Finish",
+                          backgroundColor: const Color(0xFF794DEB),
+                          textStyle: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                        ),
+                      ],
+
+                      child: TextField(
+                        controller: _ipController,
+                        keyboardType: TextInputType.number,
+
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontFamily: 'SF Pro Display',
+                        ),
+
+                        decoration: InputDecoration(
+                          hintText: 'e.g. 192.168.1.100',
+
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(.30),
+                            fontSize: 16.sp,
+                          ),
+
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E1E),
+
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 18.w,
+                            vertical: 18.h,
+                          ),
+
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                            borderSide: BorderSide.none,
+                          ),
+
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                            borderSide: BorderSide.none,
+                          ),
+
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF794DEB),
+                              width: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'Port (Remote Service v2)',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 14.sp,
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButtonFormField<String>(
+                        value: _portController.text,
+                        dropdownColor: const Color(0xFF1E1E1E),
+                        style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E1E),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14.r),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        items: [
+                          DropdownMenuItem(value: _portController.text, child: Text(_portController.text)),
+                          if (_portController.text != '8002') const DropdownMenuItem(value: '8002', child: Text('8002')),
+                          if (_portController.text != '3000') const DropdownMenuItem(value: '3000', child: Text('3000')),
+                          if (_portController.text != '8060') const DropdownMenuItem(value: '8060', child: Text('8060')),
+                          if (_portController.text != '8080') const DropdownMenuItem(value: '8080', child: Text('8080')),
+                          if (_portController.text != '7000') const DropdownMenuItem(value: '7000', child: Text('7000')),
+                          if (_portController.text != '6466') const DropdownMenuItem(value: '6466', child: Text('6466')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _portController.text = val;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 30.h),
+                    GestureDetector(
+                      onTap: _connectManually,
+                      child: Container(
+                        alignment: Alignment.center,
+                        width: double.infinity,
+                        height: 56.h,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(33.33.r),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                          ),
+                        ),
+                        child: Text(
+                          'Connect',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            color: Colors.white,
+                            fontFamily: 'SF Pro Display',
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                  ],
+                ),
+              );
+            }
+
+            if (displayedDevices.isNotEmpty) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+                child: Column(
+                  children: [
+                    SizedBox(height: 10.h),
+                    const Center(child: RadarIndicator()),
+                    SizedBox(height: 16.h),
+                    _buildSelectBrandButton(),
+                    SizedBox(height: 16.h),
+                    Center(
+                      child: Text(
+                        widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22.sp,
+                          fontFamily: 'SF Pro Display',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12.h),
+                    Center(
+                      child: Text(
+                        'Make sure both your phone and TV are connected \n to the same Wi-Fi.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 15.sp,
+                          fontFamily: 'SF Pro Display',
+                          fontWeight: FontWeight.w400,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    ...displayedDevices.map((device) {
+                      return GestureDetector(
+                        onTap: () {
+                          manager.connectToDevice(device);
+                        },
+                        child: Container(
+                          margin: EdgeInsets.only(bottom: 12.h),
+                          padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E22),
+                            borderRadius: BorderRadius.circular(16.r),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 60.w,
+                                height: 44.h,
+                                decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(8.r),
+                                  image: DecorationImage(
+                                    image: AssetImage(_getBrandImage(device.brand)),
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 16.w),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      device.name,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16.sp,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'SF Pro Display',
+                                      ),
+                                    ),
+                                    SizedBox(height: 4.h),
+                                    Text(
+                                      '(${device.ipAddress})',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.5),
+                                        fontSize: 14.sp,
+                                        fontFamily: 'SF Pro Display',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    SizedBox(height: 10.h),
+                    Container(
+                      padding: EdgeInsets.all(16.w),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E22),
+                        borderRadius: BorderRadius.circular(24.r),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Can't find your TV? Connect manually",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15.sp,
+                              fontFamily: 'SF Pro Display',
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 12.h),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: TextField(
+                                  controller: _ipController,
+                                  keyboardType: TextInputType.number,
+                                  style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                                  decoration: InputDecoration(
+                                    hintText: 'e.g, 192.168.1.100',
+                                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 16.sp),
+                                    filled: true,
+                                    fillColor: const Color(0xFF131315),
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14.r),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 12.w),
+                              Expanded(
+                                flex: 1,
+                                child: TextField(
+                                  controller: _portController,
+                                  keyboardType: TextInputType.number,
+                                  style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                                  decoration: InputDecoration(
+                                    hintText: 'Port',
+                                    hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 16.sp),
+                                    filled: true,
+                                    fillColor: const Color(0xFF131315),
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(14.r),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16.h),
+                          GestureDetector(
+                            onTap: _connectManually,
+                            child: Container(
+                              alignment: Alignment.center,
+                              width: double.infinity,
+                              height: 56.h,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(33.33.r),
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                                ),
+                              ),
+                              child: Text(
+                                'Connect',
+                                style: TextStyle(
+                                  fontSize: 18.sp,
+                                  color: Colors.white,
+                                  fontFamily: 'SF Pro Display',
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              children: [
+                SizedBox(height: 10.h),
+                Showcase(
+                  key: OnboardingKeys.discoveryAreaKey,
+                  title: 'Connect to the Same Wi-Fi',
+                  description: 'Make sure your phone and TV are connected to the same Wi-Fi network. Once connected, nearby TVs will appear here automatically.',
+                  tooltipBackgroundColor: const Color(0xFF181F3D),
+                  textColor: Colors.white,
+                  tooltipBorderRadius: BorderRadius.circular(16.r),
+                  titleTextStyle: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                  descTextStyle: TextStyle(color: Colors.white70, fontSize: 14.sp, fontFamily: 'SF Pro Display'),
+                  targetShapeBorder: const CircleBorder(),
+                  tooltipActions: [
+                    TooltipActionButton(
+                      type: TooltipDefaultActionType.skip,
+                      backgroundColor: const Color(0xFF1E1E22),
+                      textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                    ),
+                    TooltipActionButton(
+                      type: TooltipDefaultActionType.next,
+                      textStyle: TextStyle(color: Colors.white, fontSize: 14.sp),
+                    ),
+                  ],
+                  child: const RadarIndicator(),
+                ),
+                SizedBox(height: 16.h),
+                _buildSelectBrandButton(),
+                SizedBox(height: 16.h),
+                Text(
+                  widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22.sp,
+                    fontFamily: 'SF Pro Display',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 12.h),
+                Text(
+                  'Make sure both your phone and TV are connected \n to the same Wi-Fi.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 15.sp,
+                    fontFamily: 'SF Pro Display',
+                    fontWeight: FontWeight.w400,
+                    height: 1.3,
+                  ),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+                  child: Showcase(
+                    key: OnboardingKeys.connectManuallyButtonKey,
+                    title: 'Connect Manually',
+                    description: "Can't find your TV? Tap Connect Manually to connect using your TV's IP address.",
+                    tooltipBackgroundColor: const Color(0xFF181F3D),
+                    textColor: Colors.white,
+                    tooltipBorderRadius: BorderRadius.circular(16.r),
+                    titleTextStyle: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                    descTextStyle: TextStyle(color: Colors.white70, fontSize: 14.sp, fontFamily: 'SF Pro Display'),
+                    targetShapeBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(33.33.r)),
+                    tooltipActions: [
+                      TooltipActionButton(
+                        type: TooltipDefaultActionType.previous,
+                        backgroundColor: const Color(0xFF1E1E22),
+                        textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                      ),
+                      TooltipActionButton(
+                        type: TooltipDefaultActionType.skip,
+                        backgroundColor: const Color(0xFF1E1E22),
+                        textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                      ),
+                      TooltipActionButton(
+                        type: TooltipDefaultActionType.next,
+                        backgroundColor: const Color(0xFF794DEB),
+                        textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                        onTap: () {
+                          setState(() {
+                            _showManualInput = true;
+                          });
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            ShowcaseView.get().next(force: true);
+                          });
+                        },
+                      ),
+                    ],
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _showManualInput = true;
+                        });
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        width: double.infinity,
+                        height: 56.h,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(33.33.r),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                          ),
+                        ),
+                        child: Text(
+                          'Connect Manually',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            color: Colors.white,
+                            fontFamily: 'SF Pro Display',
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+      ),
+    ),
+  ),
+        if (manager.loadingMessage != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {},
+              behavior: HitTestBehavior.opaque,
+              child: Material(
+                color: Colors.black.withValues(alpha: 0.7),
+                child: Center(
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: 40.w),
+                    padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 24.h),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E1E22),
+                      borderRadius: BorderRadius.circular(16.r),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF794DEB)),
+                        ),
+                        SizedBox(height: 16.h),
+                        Text(
+                          manager.loadingMessage!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16.sp,
+                            fontFamily: 'SF Pro Display',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -294,7 +897,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.settings_ethernet, color: AppTheme.primary, size: 20),
+                  Icon(
+                    Icons.settings_ethernet,
+                    color: AppTheme.primary,
+                    size: 20,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'MANUAL DEVICE CONNECT',
@@ -317,11 +924,23 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   ),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'Android TV', child: Text('Android TV / Google TV')),
-                  DropdownMenuItem(value: 'Samsung Tizen', child: Text('Samsung Tizen TV')),
-                  DropdownMenuItem(value: 'LG webOS', child: Text('LG Smart TV (webOS)')),
+                  DropdownMenuItem(
+                    value: 'Android TV',
+                    child: Text('Android TV / Google TV'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'Samsung Tizen',
+                    child: Text('Samsung Tizen TV'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'LG webOS',
+                    child: Text('LG Smart TV (webOS)'),
+                  ),
                   DropdownMenuItem(value: 'Roku', child: Text('Roku TV')),
-                  DropdownMenuItem(value: 'Amazon Fire TV', child: Text('Amazon Fire TV')),
+                  DropdownMenuItem(
+                    value: 'Amazon Fire TV',
+                    child: Text('Amazon Fire TV'),
+                  ),
                   DropdownMenuItem(value: 'Apple TV', child: Text('Apple TV')),
                 ],
                 onChanged: (val) {
@@ -400,61 +1019,315 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
-  Widget _buildScanningPlaceholder() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Card(
-          color: AppTheme.surface,
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+  String _getBrandImage(String brand) {
+    if (brand == 'Samsung Tizen') return 'assets/tv images/Samsung.png';
+    if (brand == 'LG webOS') return 'assets/tv images/Lg.png';
+    if (brand == 'Roku') return 'assets/tv images/roku.png';
+    if (brand == 'Amazon Fire TV') return 'assets/tv images/Amazon fire tv.png';
+    if (brand == 'Apple TV') return 'assets/tv images/Apple Tv.png';
+    return 'assets/tv images/Sony.png';
+  }
+
+  Widget _buildSelectBrandButton() {
+    return GestureDetector(
+      onTap: () {
+        widget.manager.stopScan();
+        Get.to(() => BrandSelectionScreen(manager: widget.manager));
+      },
+      child: Container(
+        margin: EdgeInsets.only(bottom: 12.h),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
               children: [
-                const Icon(
-                  Icons.wifi_find,
-                  color: AppTheme.primary,
-                  size: 48,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Searching for TVs...',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                Icon(Icons.tv_rounded, color: Colors.white, size: 22.sp),
+                SizedBox(width: 12.w),
                 Text(
-                  widget.selectedBrand == 'Android TV'
-                      ? 'This scan uses multicast DNS to locate Android TV or Google TV devices automatically.'
-                      : 'This scan uses SSDP network discovery to locate ${widget.selectedBrand} devices automatically.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                OutlinedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _showManualInput = true;
-                    });
-                  },
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('CONNECT MANUALLY'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.primary,
-                    side: const BorderSide(color: AppTheme.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  'Select TV Brand',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'SF Pro Display',
                   ),
                 ),
               ],
             ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScanningPlaceholder() {
+    if (_showManualInput) {
+      return SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 10.h),
+          child: Column(
+            children: [
+              SizedBox(height: 10.h),
+              const RadarIndicator(),
+              SizedBox(height: 30.h),
+              Text(
+                widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22.sp,
+                  fontFamily: 'SF Pro Display',
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(height: 12.h),
+              Text(
+                'Make sure both your phone and TV are connected \n to the same Wi-Fi.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 15.sp,
+                  fontFamily: 'SF Pro Display',
+                  fontWeight: FontWeight.w400,
+                  height: 1.3,
+                ),
+              ),
+              SizedBox(height: 30.h),
+              _buildFieldTitle('TV Brand'),
+              DropdownButtonHideUnderline(
+                child: DropdownButtonFormField<String>(
+                  value: _selectedBrand,
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF1E1E1E),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14.r),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'Android TV', child: Text('Android TV / Google TV')),
+                    DropdownMenuItem(value: 'Samsung Tizen', child: Text('Samsung Tizen TV')),
+                    DropdownMenuItem(value: 'LG webOS', child: Text('LG Smart TV (webOS)')),
+                    DropdownMenuItem(value: 'Roku', child: Text('Roku TV')),
+                    DropdownMenuItem(value: 'Amazon Fire TV', child: Text('Amazon Fire TV')),
+                    DropdownMenuItem(value: 'Apple TV', child: Text('Apple TV')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedBrand = val;
+                        if (val == 'Samsung Tizen') {
+                          _portController.text = '8002';
+                        } else if (val == 'LG webOS') {
+                          _portController.text = '3000';
+                        } else if (val == 'Roku') {
+                          _portController.text = '8060';
+                        } else if (val == 'Amazon Fire TV') {
+                          _portController.text = '8080';
+                        } else if (val == 'Apple TV') {
+                          _portController.text = '7000';
+                        } else {
+                          _portController.text = '6466';
+                        }
+                      });
+                    }
+                  },
+                ),
+              ),
+              SizedBox(height: 16.h),
+              _buildFieldTitle('TV IP Address'),
+              TextField(
+                controller: _ipController,
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                decoration: InputDecoration(
+                  hintText: 'e.g, 192.168.1.100',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 16.sp),
+                  filled: true,
+                  fillColor: const Color(0xFF1E1E1E),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14.r),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              SizedBox(height: 16.h),
+              _buildFieldTitle('Port (Remote Service v2)'),
+              DropdownButtonHideUnderline(
+                child: DropdownButtonFormField<String>(
+                  value: _portController.text,
+                  dropdownColor: const Color(0xFF1E1E1E),
+                  style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF1E1E1E),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14.r),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  items: [
+                    DropdownMenuItem(value: _portController.text, child: Text(_portController.text)),
+                    if (_portController.text != '8002') const DropdownMenuItem(value: '8002', child: Text('8002')),
+                    if (_portController.text != '3000') const DropdownMenuItem(value: '3000', child: Text('3000')),
+                    if (_portController.text != '8060') const DropdownMenuItem(value: '8060', child: Text('8060')),
+                    if (_portController.text != '8080') const DropdownMenuItem(value: '8080', child: Text('8080')),
+                    if (_portController.text != '7000') const DropdownMenuItem(value: '7000', child: Text('7000')),
+                    if (_portController.text != '6466') const DropdownMenuItem(value: '6466', child: Text('6466')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _portController.text = val;
+                      });
+                    }
+                  },
+                ),
+              ),
+              SizedBox(height: 30.h),
+              GestureDetector(
+                onTap: _connectManually,
+                child: Container(
+                  alignment: Alignment.center,
+                  width: double.infinity,
+                  height: 56.h,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(33.33.r),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        offset: const Offset(0, 4),
+                        blurRadius: 20,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'Connect',
+                    style: TextStyle(
+                      fontSize: 18.sp,
+                      color: Colors.white,
+                      fontFamily: 'SF Pro Display',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: 20.h),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 10.h),
+        child: Column(
+          children: [
+            //const Spacer(),
+            const RadarIndicator(),
+            SizedBox(height: 48.h),
+            Text(
+              widget.manager.isScanning ? 'Searching WiFi Network...' : 'Searching Stopped',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22.sp,
+                fontFamily: 'SF Pro Display',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              'Make sure both your phone and TV are connected \n to the same Wi-Fi.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 15.sp,
+                fontFamily: 'SF Pro Display',
+                fontWeight: FontWeight.w400,
+                height: 1.3,
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showManualInput = true;
+                });
+              },
+              child: Container(
+                alignment: Alignment.center,
+                width: double.infinity,
+                height: 56.h,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(33.33.r),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      offset: const Offset(0, 4),
+                      blurRadius: 20,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  'Connect Manually',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    color: Colors.white,
+                    fontFamily: 'SF Pro Display',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 10.h),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildFieldTitle(String title) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: 8.h, left: 4.w),
+        child: Text(
+          title,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.6),
+            fontSize: 14.sp,
+            fontFamily: 'SF Pro Display',
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
@@ -515,6 +1388,127 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildWifiDisconnectedView() {
+    final hasMobileData = widget.manager.currentConnectivity.contains(ConnectivityResult.mobile);
+    
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(24.r),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (hasMobileData ? AppTheme.warning : AppTheme.error).withValues(alpha: 0.2),
+                  width: 2.w,
+                ),
+              ),
+              child: Icon(
+                hasMobileData ? Icons.signal_cellular_nodata_rounded : Icons.wifi_off_rounded,
+                size: 72.r,
+                color: hasMobileData ? AppTheme.warning : AppTheme.error,
+              ),
+            ),
+            SizedBox(height: 24.h),
+            Text(
+              hasMobileData ? 'Wi-Fi Connection Required' : 'No Network Connection',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22.sp,
+                fontFamily: 'SF Pro Display',
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            SizedBox(height: 12.h),
+            Text(
+              hasMobileData
+                  ? 'You are currently connected to Mobile Data. Smart TV control requires a local Wi-Fi connection.\n\nPlease connect your phone to the same Wi-Fi network as your TV.'
+                  : 'Your phone is offline. Please turn on Wi-Fi and connect to the same network as your TV to discover and control devices.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 15.sp,
+                fontFamily: 'SF Pro Display',
+                fontWeight: FontWeight.w400,
+                height: 1.4,
+              ),
+            ),
+            SizedBox(height: 36.h),
+            GestureDetector(
+              onTap: () {
+                Connectivity().checkConnectivity().then((result) {
+                  Fluttertoast.showToast(
+                    msg: 'Checking connection...',
+                    backgroundColor: AppTheme.info,
+                    textColor: Colors.white,
+                  );
+                });
+              },
+              child: Container(
+                alignment: Alignment.center,
+                width: double.infinity,
+                height: 56.h,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(33.33.r),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                  ),
+                ),
+                child: Text(
+                  'Check Connection',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    color: Colors.white,
+                    fontFamily: 'SF Pro Display',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class RadarIndicator extends StatelessWidget {
+  const RadarIndicator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Lottie.asset(
+      "assets/process.json",
+      width: 250.w,
+      height: 250.w,
+      fit: BoxFit.contain,
+      repeat: true,
+      errorBuilder: (context, error, stackTrace) {
+        // Fallback loader if the Lottie asset is not yet bundled or fails to load
+        return Container(
+          width: 160.w,
+          height: 160.w,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF6338F8).withValues(alpha: 0.3),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+        );
+      },
     );
   }
 }

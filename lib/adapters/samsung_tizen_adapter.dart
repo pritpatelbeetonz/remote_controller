@@ -36,6 +36,9 @@ class SamsungTizenAdapter implements TvRemoteAdapter {
 
   SamsungTizenAdapter([this._webSocketFactory]);
 
+  @override
+  void Function()? onConnectionLost;
+
   // ─── Logging ─────────────────────────────────────────────────────────────
 
   final StreamController<Map<String, dynamic>> _logController =
@@ -383,6 +386,16 @@ class SamsungTizenAdapter implements TvRemoteAdapter {
         return 'KEY_HOME';
       case TvKey.playPause:
         return 'KEY_PLAY_BACK';
+      case TvKey.rewind:
+        return 'KEY_REWIND';
+      case TvKey.fastForward:
+        return 'KEY_FF';
+      case TvKey.options:
+        return 'KEY_TOOLS';
+      case TvKey.info:
+        return 'KEY_INFO';
+      case TvKey.inputSource:
+        return 'KEY_SOURCE';
     }
   }
 
@@ -459,6 +472,15 @@ class SamsungTizenAdapter implements TvRemoteAdapter {
       return false;
     }
   }
+
+  @override
+  Future<bool> isKeyboardSupported() => Future.value(true);
+
+  @override
+  Future<bool> isTextFieldFocused() => Future.value(true);
+
+  @override
+  Future<String> getKeyboardState() => Future.value('READY');
 
   Future<String?> _getLocalIpAddress() async {
     try {
@@ -557,7 +579,7 @@ class SamsungTizenAdapter implements TvRemoteAdapter {
           'event': 'ed.apps.launch',
           'to': 'host',
           'data': {
-            'appId': type == 'v' ? 'org.tizen.browser' : '',
+            'appId': (type == 'v' || type == 'p' || type == 'w') ? 'org.tizen.browser' : '',
             'action_type': 'DEEP_LINK',
             'metaTag': finalUrl,
           },

@@ -28,7 +28,8 @@ class DeviceScanner(
         timeout: Long = 10000,
         onDiscoveryComplete: (List<TVDevice>) -> Unit = {}
     ) {
-        Logger.d(Constants.TAG_DISCOVERY, "startDiscovery called with timeout: $timeout")
+        Logger.i(Constants.TAG_DISCOVERY, "Discovery started")
+        Logger.i(Constants.TAG_DISCOVERY, "Acquiring multicast lock")
         
         try {
             val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -36,9 +37,9 @@ class DeviceScanner(
                 setReferenceCounted(true)
                 acquire()
             }
-            Logger.d(Constants.TAG_DISCOVERY, "Acquired multicast lock")
+            Logger.i(Constants.TAG_DISCOVERY, "Multicast lock acquired")
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_DISCOVERY, "Failed to acquire multicast lock: ${e.message}")
+            Logger.e(Constants.TAG_DISCOVERY, "Discovery failed to acquire multicast lock: ${e.message}", e)
         }
 
         discoveredDevices.clear()
@@ -46,31 +47,34 @@ class DeviceScanner(
 
         discoveryListener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(serviceType: String) {
-                Logger.d(Constants.TAG_DISCOVERY, "Discovery started for $serviceType")
+                Logger.i(Constants.TAG_DISCOVERY, "Searching for $serviceType")
             }
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                Logger.d(Constants.TAG_DISCOVERY, "Service found: ${serviceInfo.serviceName}")
+                Logger.i(Constants.TAG_DISCOVERY, "Service found:\n" +
+                    "Service Name: ${serviceInfo.serviceName}\n" +
+                    "Service Type: ${serviceInfo.serviceType}")
+                Logger.i(Constants.TAG_DISCOVERY, "Resolving service: ${serviceInfo.serviceName}")
                 resolveService(serviceInfo)
             }
 
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {
-                Logger.d(Constants.TAG_DISCOVERY, "Service lost: ${serviceInfo.serviceName}")
+                Logger.i(Constants.TAG_DISCOVERY, "Service lost: ${serviceInfo.serviceName}")
                 discoveredDevices.removeAll { it.hostname == serviceInfo.serviceName }
                 notifyCallbacks()
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
-                Logger.d(Constants.TAG_DISCOVERY, "Discovery stopped")
+                Logger.i(Constants.TAG_DISCOVERY, "Discovery completed")
             }
 
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Logger.e(Constants.TAG_DISCOVERY, "Discovery failed: $errorCode")
+                Logger.e(Constants.TAG_DISCOVERY, "Discovery failed: Start discovery failed with error code $errorCode")
                 stopDiscovery()
             }
 
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
-                Logger.e(Constants.TAG_DISCOVERY, "Stop discovery failed: $errorCode")
+                Logger.e(Constants.TAG_DISCOVERY, "Stop discovery failed with error code: $errorCode")
             }
         }
 
@@ -80,22 +84,9 @@ class DeviceScanner(
                 NsdManager.PROTOCOL_DNS_SD,
                 discoveryListener
             )
-
-            scope.launch {
-                try {
-                    Logger.d(Constants.TAG_DISCOVERY, "Coroutine: delay starting for $timeout ms")
-                    delay(timeout)
-                    Logger.d(Constants.TAG_DISCOVERY, "Coroutine: delay finished")
-                    stopDiscovery()
-                } catch (e: CancellationException) {
-                    Logger.d(Constants.TAG_DISCOVERY, "Coroutine: delay cancelled: ${e.message}")
-                    throw e
-                } catch (e: Exception) {
-                    Logger.e(Constants.TAG_DISCOVERY, "Coroutine: delay error: ${e.message}", e)
-                }
-            }
+            Logger.d(Constants.TAG_DISCOVERY, "mDNS Discovery started continuously (no auto-timeout).")
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_DISCOVERY, "Discovery error: ${e.message}", e)
+            Logger.e(Constants.TAG_DISCOVERY, "Discovery failed: ${e.message}", e)
         }
     }
 
@@ -120,13 +111,17 @@ class DeviceScanner(
 
         val listener = object : NsdManager.ResolveListener {
             override fun onResolveFailed(resolvedInfo: NsdServiceInfo, errorCode: Int) {
-                Logger.e(Constants.TAG_DISCOVERY, "Resolve failed: $errorCode")
+                Logger.e(Constants.TAG_DISCOVERY, "Resolve failed for ${resolvedInfo.serviceName} with error code: $errorCode")
                 isResolving.set(false)
                 processNextResolve()
             }
 
             override fun onServiceResolved(resolvedInfo: NsdServiceInfo) {
-                Logger.d(Constants.TAG_DISCOVERY, "Service resolved: ${resolvedInfo.serviceName}")
+                Logger.i(Constants.TAG_DISCOVERY, "Resolve successful:\n" +
+                    "Service Name: ${resolvedInfo.serviceName}\n" +
+                    "Hostname: ${resolvedInfo.host?.hostName ?: "Unknown"}\n" +
+                    "IP: ${resolvedInfo.host?.hostAddress ?: "Unknown"}\n" +
+                    "Port: ${resolvedInfo.port}")
 
                 val device = TVDevice(
                     name = resolvedInfo.serviceName.split(".")[0],
@@ -137,6 +132,7 @@ class DeviceScanner(
 
                 if (device.ipAddress.isNotEmpty() && !discoveredDevices.any { it.ipAddress == device.ipAddress }) {
                     discoveredDevices.add(device)
+                    Logger.i(Constants.TAG_DISCOVERY, "TV added to discovered list: ${device.name} (${device.ipAddress})")
                     notifyCallbacks()
                 }
 
@@ -148,7 +144,7 @@ class DeviceScanner(
         try {
             nsdManager.resolveService(serviceInfo, listener)
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_DISCOVERY, "Error invoking resolveService: ${e.message}")
+            Logger.e(Constants.TAG_DISCOVERY, "Error invoking resolveService: ${e.message}", e)
             isResolving.set(false)
             processNextResolve()
         }
@@ -159,21 +155,20 @@ class DeviceScanner(
             multicastLock?.let {
                 if (it.isHeld) {
                     it.release()
-                    Logger.d(Constants.TAG_DISCOVERY, "Released multicast lock")
+                    Logger.i(Constants.TAG_DISCOVERY, "Released multicast lock")
                 }
             }
             multicastLock = null
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_DISCOVERY, "Failed to release multicast lock: ${e.message}")
+            Logger.e(Constants.TAG_DISCOVERY, "Failed to release multicast lock: ${e.message}", e)
         }
         try {
-            Logger.d(Constants.TAG_DISCOVERY, "stopDiscovery called. Trace:", Exception("stopDiscovery Trace"))
             discoveryListener?.let {
                 nsdManager.stopServiceDiscovery(it)
             }
-            Logger.d(Constants.TAG_DISCOVERY, "Discovery stopped")
+            Logger.i(Constants.TAG_DISCOVERY, "Discovery stopped")
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_DISCOVERY, "Stop error: ${e.message}")
+            Logger.e(Constants.TAG_DISCOVERY, "Stop error: ${e.message}", e)
         }
     }
 

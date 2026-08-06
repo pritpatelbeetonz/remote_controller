@@ -11,26 +11,24 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
-import 'routes/app_routes.dart';
-import 'modules/main/views/main_view.dart';
+import 'package:remote_controller/main.dart';
+import 'package:remote_controller/ui/screens/discovery_screen.dart';
+import 'package:remote_controller/ui/screens/brand_selection_screen.dart';
 import 'for_ads/ads/ads_variable.dart';
 import 'for_ads/ads/app_open_ad.dart';
 import 'for_ads/ads/life_cycle.dart';
 import 'for_ads/utils/app_constants.dart';
 import 'for_ads/utils/firebase_analysis.dart';
 import 'privacy_policy_screen.dart';
+import 'for_ads/utils/shared_prefrence_service.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'core/services/storage/shared_prefs_service.dart';
 
 class PremiumCreditView extends StatefulWidget {
   final bool onboarding;
   final Function onDone;
 
-  const PremiumCreditView({
-    key,
-    required this.onboarding,
-    required this.onDone,
-  }) : super(key: key);
+  const PremiumCreditView({key, required this.onboarding, required this.onDone})
+    : super(key: key);
 
   @override
   State<PremiumCreditView> createState() => _PremiumCreditViewState();
@@ -89,10 +87,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
             children: [
               // 1. Collage background at top half
               Positioned.fill(
-                child: Image.asset(
-                  "assets/Premium/premium.png",
-                  fit: BoxFit.cover,
-                ),
+                child: Image.asset("assets/premium/bg.png", fit: BoxFit.cover),
               ),
 
               // 2. Scrollable Body Contents
@@ -101,68 +96,74 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                   physics: const ClampingScrollPhysics(),
                   child: Column(
                     children: [
-                      SizedBox(height: MediaQuery.of(context).padding.top + 180.h),
+                      SizedBox(
+                        height: MediaQuery.of(context).padding.top + 320.h,
+                      ),
                       // Title
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24.w),
                         child: Text(
-                          'Create Without Limits',
+                          'Unlock Premium Features',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 26.sp,
                             color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'Inter',
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'SF Pro Display',
                             letterSpacing: -0.5,
                           ),
                         ),
                       ),
                       SizedBox(height: 8.h),
-                      
+
                       // Subtitle
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24.w),
+                        padding: EdgeInsets.symmetric(horizontal: 0.w),
                         child: Text(
-                          "Unlock premium editing and templates.",
+                          "Enjoy unlimited remote access & exclusive premium tools.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16.sp,
                             fontWeight: FontWeight.w400,
                             color: Colors.white70,
-                            fontFamily: 'Inter',
+                            fontFamily: 'SF Pro Display',
                           ),
                         ),
                       ),
-                      SizedBox(height: 28.h),
-          
+                      SizedBox(height: 10.h),
+
                       // 3. Features Card (rounded with thin border)
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 20.w),
                         child: Container(
-                          padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 16.w),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF101012),
-                            borderRadius: BorderRadius.circular(24.r),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              width: 1.0,
-                            ),
+                          padding: EdgeInsets.symmetric(
+                            vertical: 10.h,
+                            horizontal: 16.w,
                           ),
-                          child: Column(
-                            children: [
-                              _featureRow("Export Without Watermarks"),
-                              SizedBox(height: 14.h),
-                              _featureRow("Unlimited Layouts"),
-                              SizedBox(height: 14.h),
-                              _featureRow("Unlimited Templates"),
-                              SizedBox(height: 14.h),
-                              _featureRow("Unlimited Share & save"),
-                            ],
+                          decoration: BoxDecoration(),
+                          child: Center(
+                            // <-- add
+                            child: IntrinsicWidth(
+                              // <-- add
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment
+                                    .start, // <-- was center-ish before, now explicit
+                                children: [
+                                  _featureRow("Enjoy an Ad-Free Experience"),
+                                  SizedBox(height: 12.h),
+                                  _featureRow("Cast Photos Videos And Music"),
+                                  SizedBox(height: 12.h),
+                                  _featureRow("Connect To Smart TVs Instantly"),
+                                  SizedBox(height: 12.h),
+                                  _featureRow("Compatible With Most Smart TVs"),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                      SizedBox(height: 24.h),
-          
+                      SizedBox(height: 10.h),
+
                       if (_hasInternet) ...[
                         // 4. Subscription Plan Cards Row
                         Padding(
@@ -173,33 +174,33 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                               Expanded(
                                 child: _planCard(
                                   index: 0,
-                                  title: "Annual Plan",
+                                  title: "Pro Yearly",
                                   price: price2,
                                   subtitle: "$priceprweek / Weekly",
                                   hasRibbon: true,
-                                  ribbonText: "$discount% OFF",
+                                  ribbonText: "SAVE $discount%",
                                   packgaedata: PackageType.annual,
                                 ),
                               ),
-            
+
                               SizedBox(width: 12.w),
                               // Monthly Plan
                               Expanded(
                                 child: _planCard(
                                   index: 1,
-                                  title: "Monthly Plan",
+                                  title: "Pro Weekly",
                                   price: price1,
-                                  subtitle: "Cancel Anytime",
+                                  subtitle: "Best value",
                                   hasRibbon: false,
-                                  badgeText: "BEST VALUE",
+                                  badgeText: "",
                                   packgaedata: PackageType.monthly,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        SizedBox(height: 30.h),
-            
+                        SizedBox(height: 15.h),
+
                         // 5. Upgrade Button
                         Padding(
                           padding: EdgeInsets.symmetric(horizontal: 20.w),
@@ -216,12 +217,14 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                                     content: Center(
                                       child: Container(
                                         padding: EdgeInsets.symmetric(
-                                          vertical: 20.h,
+                                          vertical: 10.h,
                                           horizontal: 30.w,
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF141416),
-                                          borderRadius: BorderRadius.circular(16.r),
+                                          borderRadius: BorderRadius.circular(
+                                            16.r,
+                                          ),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -229,10 +232,14 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                                             SizedBox(
                                               width: 24.w,
                                               height: 24.w,
-                                              child: const CircularProgressIndicator(
-                                                strokeWidth: 3,
-                                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6F5BFF)),
-                                              ),
+                                              child:
+                                                  const CircularProgressIndicator(
+                                                    strokeWidth: 3,
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(Color(0xFF6F5BFF)),
+                                                  ),
                                             ),
                                             SizedBox(width: 16.w),
                                             Text(
@@ -251,7 +258,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                                   );
                                 },
                               );
-            
+
                               _getPremiumVersion();
                             },
                             child: Container(
@@ -259,23 +266,32 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                               width: double.infinity,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16.r),
-                                color: const Color(0xFF6F5BFF),
+                                borderRadius: BorderRadius.circular(33.33.r),
+                                gradient: LinearGradient(
+                                  begin: AlignmentGeometry.topCenter,
+                                  end: AlignmentGeometry.bottomCenter,
+                                  colors: [
+                                    Color(0xFF794DEB),
+                                    Color(0xFF512CB8),
+                                  ],
+                                ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF6F5BFF).withOpacity(0.6),
-                                    blurRadius: 24,
-                                    spreadRadius: 2,
+                                    color: const Color(
+                                      0xFF000000,
+                                    ).withOpacity(0.15),
+                                    blurRadius: 20,
+                                    spreadRadius: 0,
                                   ),
                                 ],
                               ),
                               child: Text(
-                                "Upgrade to Premium",
+                                "Subscribe",
                                 style: TextStyle(
-                                  fontSize: 16.sp,
+                                  fontSize: 20.sp,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white,
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'SF Pro Display',
                                 ),
                               ),
                             ),
@@ -353,7 +369,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           ),
                         ),
                       ],
-                      SizedBox(height: 5.h),
+                     // SizedBox(height: 5.h),
                       GestureDetector(
                         onTap: () {
                           _showTesterLoginDialog(context);
@@ -367,13 +383,13 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                               fontWeight: FontWeight.w500,
                               color: const Color(0xFF6F5BFF),
                               fontFamily: 'Inter',
-                              decoration: TextDecoration.underline,
+                            //  decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
                       ),
-                      SizedBox(height: 5.h),
-          
+                      //SizedBox(height: 5.h),
+
                       // 6. Terms & Privacy policy footer
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24.w),
@@ -381,10 +397,10 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           textAlign: TextAlign.center,
                           text: TextSpan(
                             style: TextStyle(
-                              fontSize: 12.sp,
+                              fontSize: 14.sp,
                               color: Colors.white38,
                               height: 1.5,
-                              fontFamily: 'Inter',
+                              fontFamily: 'SF Pro Display',
                             ),
                             children: [
                               const TextSpan(
@@ -418,7 +434,8 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                                   },
                               ),
                               const TextSpan(
-                                text: '\nsubscription auto renew, cancel anytime.',
+                                text:
+                                    '\nsubscription auto renew, cancel anytime.',
                               ),
                             ],
                           ),
@@ -429,7 +446,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                   ),
                 ),
               ),
-          
+
               // 7. Top Navigation Bar (Back and Restore)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 10.h,
@@ -441,7 +458,12 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                     GestureDetector(
                       onTap: () {
                         if (widget.onboarding) {
-                          Get.offAllNamed(AppRoutes.home);
+                          Get.offAll(
+                            () => DiscoveryScreen(
+                              manager: MyApp.globalManager,
+                              selectedBrand: 'All',
+                            ),
+                          );
                         } else {
                           Navigator.pop(context);
                         }
@@ -547,7 +569,9 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
   void _getPremiumVersion() async {
     if (selectedPackage == null) {
       Navigator.pop(context);
-      Fluttertoast.showToast(msg: "Store is currently unavailable. Try again later.");
+      Fluttertoast.showToast(
+        msg: "Store is currently unavailable. Try again later.",
+      );
       return;
     }
 
@@ -590,7 +614,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
       );
 
       if (widget.onboarding) {
-        Get.offAllNamed(AppRoutes.home);
+        Get.offAll(() => DiscoveryScreen(manager: MyApp.globalManager, selectedBrand: 'All'));
         widget.onDone();
       } else {
         Navigator.of(context).pop();
@@ -601,7 +625,10 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
     }
   }
 
-  Package? _firstWhereOrNull(Iterable<Package> list, bool Function(Package) test) {
+  Package? _firstWhereOrNull(
+    Iterable<Package> list,
+    bool Function(Package) test,
+  ) {
     for (final element in list) {
       if (test(element)) return element;
     }
@@ -610,13 +637,15 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
 
   void getprice() {
     if (GlobalVariables.availablePackages != null) {
-      final monthlyPkg = _firstWhereOrNull(
-        GlobalVariables.availablePackages!.values,
-        (test) => test.packageType == PackageType.monthly,
-      ) ?? _firstWhereOrNull(
-        GlobalVariables.availablePackages!.values,
-        (test) => test.packageType == PackageType.weekly,
-      );
+      final monthlyPkg =
+          _firstWhereOrNull(
+            GlobalVariables.availablePackages!.values,
+            (test) => test.packageType == PackageType.monthly,
+          ) ??
+          _firstWhereOrNull(
+            GlobalVariables.availablePackages!.values,
+            (test) => test.packageType == PackageType.weekly,
+          );
 
       final annualPkg = _firstWhereOrNull(
         GlobalVariables.availablePackages!.values,
@@ -628,7 +657,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
       }
       if (annualPkg != null) {
         price2 = annualPkg.storeProduct.priceString;
-        
+
         final double yearlyVal = annualPkg.storeProduct.price;
         final double monthlyAvg = yearlyVal / 12.0;
         symbol = price1.substring(0, 1);
@@ -640,7 +669,8 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
         final double yearlyVal = annualPkg.storeProduct.price;
         if (monthlyVal > 0) {
           double fullYearCost = monthlyVal * 12;
-          double discountVal = ((fullYearCost - yearlyVal) / fullYearCost) * 100;
+          double discountVal =
+              ((fullYearCost - yearlyVal) / fullYearCost) * 100;
           discount = discountVal.round();
         }
       }
@@ -654,26 +684,28 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
     }
   }
 
-  Widget _featureRow(String subtitle) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4.w),
-      child: Row(
-        children: [
-          Image.asset("assets/Premium/Frame.png", width: 22.w, height: 22.h),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Text(
-              subtitle,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16.sp,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Inter',
-              ),
+  Widget _featureRow(String text) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start, // was .center
+      mainAxisSize: MainAxisSize.min, // add this
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 28.w,
+          child: Icon(Icons.check, color: Colors.white, size: 22.sp),
+        ),
+        Flexible(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18.sp,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'SF Pro Display',
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -704,134 +736,152 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
           }
         });
       },
-      child: Container(
-        height: 140.h,
-        decoration: BoxDecoration(
-          color: const Color(0xFF101012),
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(
-            color: selected ? const Color(0xFF6F5BFF) : Colors.white.withValues(alpha: 0.08),
-            width: selected ? 2.w : 2.w,
-          ),
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF6F5BFF).withOpacity(0.6),
-                    blurRadius: 15,
-                    spreadRadius: 1,
-                  )
-                ]
-              : null,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14.r),
-          child: Stack(
-            children: [
-              // Main content
-              Padding(
-                padding: EdgeInsets.fromLTRB(16.w, 25.h, 16.w, 16.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                 // mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                    Spacer(),
-                    RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: price.replaceAll(RegExp(r'/(year|month|week)'), ''),
-                            style: TextStyle(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              fontFamily: 'Inter',
-                            ),
-                          ),
-                          TextSpan(
-                            text: index == 0 ? '/year' : '/month',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 13.sp,
-                              fontWeight: FontWeight.w400,
-                              fontFamily: 'Inter',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Spacer(),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w600,
-                        color: selected ? const Color(0xFF6F5BFF) : Colors.white38,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                  ],
-                ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          Container(
+            margin: EdgeInsets.only(top: 15.h),
+            height: 164.h,
+            width: double.infinity,
+            padding: EdgeInsets.all(2.2.w),
+            decoration: BoxDecoration(
+              gradient: selected
+                  ? const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFF794DEB),
+                        Color(0xFF512CB8),
+                      ],
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(30.r),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: selected ? Colors.black : Colors.transparent,
+                borderRadius: BorderRadius.circular(27.8.r),
               ),
-
-              // 50% OFF diagonal ribbon banner (top right)
-              if (hasRibbon && ribbonText != null)
-                Positioned(
-                  right: -28.w,
-                  top: 10.h,
-                  child: Transform.rotate(
-                    angle: 45 * pi / 180,
-                    child: Container(
-                      width: 90.w,
-                      height: 20.h,
-                      color: const Color(0xFF6F5BFF),
-                      alignment: Alignment.center,
-                      child: Text(
-                        ribbonText,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: selected
+                      ? LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFF794DEB).withOpacity(0.35),
+                            const Color(0xFF512CB8).withOpacity(0.35),
+                          ],
+                        )
+                      : null,
+                  color: selected ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(27.8.r),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 22.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Text(
+                        title,
                         style: TextStyle(
-                          fontSize: 9.sp,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.w500,
                           color: Colors.white,
+                          fontFamily: 'SF Pro Display',
+                        ),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: RichText(
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: price.replaceAll(
+                                  RegExp(r'/(year|month|week)'),
+                                  '',
+                                ),
+                                style: TextStyle(
+                                  fontSize: 22.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                  fontFamily: 'SF Pro Display',
+                                ),
+                              ),
+                              TextSpan(
+                                text: index == 0 ? '/year' : '/week',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15.sp,
+                                  fontWeight: FontWeight.w400,
+                                  fontFamily: 'SF Pro Display',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 15.sp,
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white.withOpacity(0.7),
                           fontFamily: 'Inter',
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-
-              // BEST VALUE pill badge (top right)
-              if (!hasRibbon && badgeText != null)
-                Positioned(
-                  right: 0.w,
-                  top: 0.h,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.only(bottomLeft: Radius.circular(4.r)),
-                    ),
-                    child: Text(
-                      badgeText,
-                      style: TextStyle(
-                        fontSize: 9.sp,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'Inter',
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+              ),
+            ),
           ),
-        ),
+          if (hasRibbon && ribbonText != null && ribbonText.isNotEmpty)
+            Positioned(
+              top: 0,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF512CB8),
+                  borderRadius: BorderRadius.circular(100.r),
+                ),
+                child: Text(
+                  ribbonText.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontFamily: 'Inter',
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+          if (!hasRibbon && badgeText != null && badgeText.isNotEmpty)
+            Positioned(
+              top: 0,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 18.w, vertical: 6.h),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF512CB8),
+                  borderRadius: BorderRadius.circular(100.r),
+                ),
+                child: Text(
+                  badgeText.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 12.sp,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    fontFamily: 'Inter',
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -884,9 +934,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           ),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Color(0xFF6F5BFF),
-                          ),
+                          borderSide: BorderSide(color: Color(0xFF6F5BFF)),
                         ),
                       ),
                       validator: (value) {
@@ -910,9 +958,7 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           ),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Color(0xFF6F5BFF),
-                          ),
+                          borderSide: BorderSide(color: Color(0xFF6F5BFF)),
                         ),
                         suffixIcon: IconButton(
                           splashRadius: 20,
@@ -971,22 +1017,19 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                       debugPrint("firebase Email :- $email");
                       debugPrint("firebase Email :- $email");
 
-
                       try {
                         final testEmail = AdsVariable.testEmail.trim();
                         final testPassword = AdsVariable.testPassword.trim();
                         debugPrint("firebase Email :- $testEmail");
                         debugPrint("firebase Email :- $testPassword");
-                        if (email == testEmail &&
-                            password == testPassword) {
+                        if (email == testEmail && password == testPassword) {
                           Navigator.pop(context);
 
                           // Enable Premium
                           AdsVariable.resetAdIds();
                           AdsVariable.isPurchase = true;
 
-                          final prefs = Get.find<SharedPrefsService>();
-                          await prefs.setBool(
+                          await SharedPrefService.sharedPreferences.setBool(
                             'is_tester_premium',
                             true,
                           );
@@ -998,7 +1041,12 @@ class _PremiumCreditViewState extends State<PremiumCreditView> {
                           );
 
                           if (widget.onboarding) {
-                            Get.offAllNamed(AppRoutes.home);
+                            Get.offAll(
+                              () => DiscoveryScreen(
+                                manager: MyApp.globalManager,
+                                selectedBrand: 'All',
+                              ),
+                            );
                             widget.onDone();
                           } else {
                             Navigator.of(context).pop();

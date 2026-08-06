@@ -14,6 +14,11 @@ enum TvKey {
   back,
   home,
   playPause,
+  rewind,
+  fastForward,
+  options,
+  info,
+  inputSource,
 }
 
 /// Represents a generic TV device discovered on the network.
@@ -85,6 +90,15 @@ abstract class TvRemoteAdapter {
   /// Send a string of text dynamically.
   Future<bool> sendText(String text);
 
+  /// Check if the physical remote keyboard is supported.
+  Future<bool> isKeyboardSupported();
+
+  /// Check if the physical remote has a focused text field.
+  Future<bool> isTextFieldFocused();
+
+  /// Retrieve the current keyboard state.
+  Future<String> getKeyboardState();
+
   /// Cast media (video, photo, music) to the TV.
   /// [url] represents either a web media URL or a local HTTP server URL.
   /// [type] is 'v' (video), 'p' (photo), or 'm' (music).
@@ -101,4 +115,7 @@ abstract class TvRemoteAdapter {
 
   /// Stream of log messages from the underlying adapter/native layer.
   Stream<Map<String, dynamic>> get logs;
+
+  /// Callback triggered when connection is lost natively.
+  void Function()? onConnectionLost;
 }

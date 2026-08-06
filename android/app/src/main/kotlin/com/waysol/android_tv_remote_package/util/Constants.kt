@@ -40,4 +40,10 @@ object Constants {
     const val TAG_PROTOCOL = "TVProtocol"
     const val TAG_REMOTE = "TVRemote"
     const val TAG_PLUGIN = "TVPlugin"
+    const val TAG_STATE = "TVState"
+    const val TAG_CONNECT = "TVConnect"
+    const val TAG_CERTIFICATE = "TVCertificate"
+    const val TAG_SOCKET = "TVSocket"
+    const val TAG_PROTOBUF = "TVProtobuf"
+    const val TAG_COMMAND = "TVCommand"
 }

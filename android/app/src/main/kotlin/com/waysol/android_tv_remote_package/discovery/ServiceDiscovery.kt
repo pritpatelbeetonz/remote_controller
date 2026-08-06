@@ -78,7 +78,7 @@ class ServiceDiscovery(
         }
     }
 
-        private val resolveQueue = java.util.concurrent.ConcurrentLinkedQueue<NsdServiceInfo>()
+    private val resolveQueue = java.util.concurrent.ConcurrentLinkedQueue<NsdServiceInfo>()
     private var isResolving = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private fun resolveService(serviceInfo: NsdServiceInfo) {
@@ -99,7 +99,10 @@ class ServiceDiscovery(
 
         val listener = object : NsdManager.ResolveListener {
             override fun onResolveFailed(resolvedInfo: NsdServiceInfo, errorCode: Int) {
-                Logger.e(Constants.TAG_DISCOVERY, "Resolve failed for ${resolvedInfo.serviceName}: $errorCode")
+                Logger.e(
+                    Constants.TAG_DISCOVERY,
+                    "Resolve failed for ${resolvedInfo.serviceName}: $errorCode"
+                )
                 isResolving.set(false)
                 processNextResolve()
             }
@@ -116,7 +119,19 @@ class ServiceDiscovery(
 
                 if (device.ipAddress.isNotEmpty() && !discoveredDevices.any { it.ipAddress == device.ipAddress }) {
                     discoveredDevices.add(device)
-                    Logger.i(Constants.TAG_DISCOVERY, "Device added: ${device.name} at ${device.ipAddress}:${device.port}")
+//                    Logger.i(Constants.TAG_DISCOVERY, "Device added: ${device.name} at ${device.ipAddress}:${device.port}")
+                    Logger.i(
+                        Constants.TAG_DISCOVERY, """
+===== NSD RESOLVE =====
+Service Name : ${resolvedInfo.serviceName}
+Host Object  : ${resolvedInfo.host}
+Host Address : ${resolvedInfo.host?.hostAddress}
+Host Name    : ${resolvedInfo.host?.hostName}
+Canonical    : ${resolvedInfo.host?.canonicalHostName}
+Port         : ${resolvedInfo.port}
+=======================
+""".trimIndent()
+                    )
                     notifyCallbacks()
                 }
 
@@ -136,7 +151,11 @@ class ServiceDiscovery(
 
     fun stopDiscovery() {
         try {
-            Logger.d(Constants.TAG_DISCOVERY, "stopDiscovery called. Trace:", Exception("stopDiscovery Trace"))
+            Logger.d(
+                Constants.TAG_DISCOVERY,
+                "stopDiscovery called. Trace:",
+                Exception("stopDiscovery Trace")
+            )
             discoveryListener?.let {
                 nsdManager.stopServiceDiscovery(it)
             }

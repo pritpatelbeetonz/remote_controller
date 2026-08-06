@@ -16,6 +16,9 @@ class AppleTvAdapter implements TvRemoteAdapter {
 
   AppleTvAdapter([this._clientFactory, this._clientFactoryMDns]);
 
+  @override
+  void Function()? onConnectionLost;
+
   final StreamController<Map<String, dynamic>> _logController = StreamController<Map<String, dynamic>>.broadcast();
 
   void _addLog(String level, String message) {
@@ -60,6 +63,10 @@ class AppleTvAdapter implements TvRemoteAdapter {
       await for (final PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
         ResourceRecordQuery.serverPointer(serviceType),
       )) {
+        _addLog(
+          'DEBUG',
+          'PTR Service Found: ${ptr.domainName}',
+        );
         String? friendlyName;
         if (ptr.domainName.endsWith('.$serviceType')) {
           friendlyName = ptr.domainName.substring(0, ptr.domainName.length - serviceType.length - 1);
@@ -68,15 +75,41 @@ class AppleTvAdapter implements TvRemoteAdapter {
         await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
           ResourceRecordQuery.service(ptr.domainName),
         )) {
+          _addLog(
+            'DEBUG',
+            'SRV Target: ${srv.target}:${srv.port}',
+          );
           await for (final IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
             ResourceRecordQuery.addressIPv4(srv.target),
           )) {
+            _addLog(
+              'DEBUG',
+              'Resolved IP: ${ip.address.address}',
+            );
             final ipAddress = ip.address.address;
             final port = srv.port;
             final name = friendlyName ?? 'Apple TV';
 
+            final lowerName = name.toLowerCase();
+            if (lowerName.contains('mac mini') ||
+                lowerName.contains('macmini') ||
+                lowerName.contains('macbook') ||
+                lowerName.contains('laptop') ||
+                lowerName.contains('mac book') ||
+                lowerName.contains('imac') ||
+                lowerName.contains('mac studio') ||
+                lowerName.contains('mac pro') ||
+                lowerName.contains('macbookpro') ||
+                lowerName.contains('macbookair') ||
+                lowerName.contains('macos') ||
+                (lowerName.contains('mac') && (lowerName.contains('’s') || lowerName.contains('\'s')))) {
+              _addLog('INFO', 'Filtered out Mac device from Apple TV discovery: $name');
+              continue;
+            }
+
             if (!discovered.any((d) => d.ipAddress == ipAddress)) {
               _addLog('INFO', 'Discovered Apple TV ($name) at IP: $ipAddress:$port');
+
               final device = TvDevice(
                 id: 'appletv-$ipAddress',
                 name: '$name ($ipAddress)',
@@ -84,16 +117,26 @@ class AppleTvAdapter implements TvRemoteAdapter {
                 port: port,
                 brand: 'Apple TV',
               );
+
               discovered.add(device);
+
+              _addLog(
+                'INFO',
+                'Total Apple TV devices discovered: ${discovered.length}',
+              );
+
               onDevices(List.from(discovered));
-            }
-          }
+            }          }
         }
       }
     } catch (e) {
       _addLog('ERROR', 'mDNS Discovery error: $e');
     } finally {
       client.stop();
+      _addLog(
+        'INFO',
+        'Discovery completed. Total devices found: ${discovered.length}',
+      );
       _addLog('INFO', 'Apple TV mDNS scan finished.');
     }
   }
@@ -219,6 +262,15 @@ class AppleTvAdapter implements TvRemoteAdapter {
     return false;
   }
 
+  @override
+  Future<bool> isKeyboardSupported() => Future.value(true);
+
+  @override
+  Future<bool> isTextFieldFocused() => Future.value(true);
+
+  @override
+  Future<String> getKeyboardState() => Future.value('READY');
+
   Future<String?> _getLocalIpAddress() async {
     try {
       final interfaces = await NetworkInterface.list(
@@ -324,9 +376,12 @@ class AppleTvAdapter implements TvRemoteAdapter {
           bytes = await getRes.expand((b) => b).toList();
         }
 
+        final ext = url.split('.').last.split('?').first.toLowerCase();
+        final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+
         final putUri = Uri.parse('http://${_currentDevice!.ipAddress}:7000/photo');
         final request = await _httpClient!.putUrl(putUri);
-        request.headers.add('Content-Type', 'image/jpeg');
+        request.headers.add('Content-Type', contentType);
         request.headers.add('User-Agent', 'MediaControl/1.0');
         request.contentLength = bytes.length;
         request.add(bytes);

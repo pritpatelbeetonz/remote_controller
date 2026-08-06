@@ -31,14 +31,18 @@ class ConnectionPool {
 
         // Create new connection
         val tlsManager = TLSManager(sslContext)
-        if (tlsManager.connect(host, port)) {
-            val pooled = PooledConnection(host, port, tlsManager)
-            if (connections.size >= maxPoolSize) {
-                // Remove oldest
-                connections.removeAt(0)
+        try {
+            if (tlsManager.connect(host, port)) {
+                val pooled = PooledConnection(host, port, tlsManager)
+                if (connections.size >= maxPoolSize) {
+                    // Remove oldest
+                    connections.removeAt(0)
+                }
+                connections.add(pooled)
+                return tlsManager
             }
-            connections.add(pooled)
-            return tlsManager
+        } catch (e: Exception) {
+            Log.e(TAG, "Connection failed: ${e.message}")
         }
 
         return null

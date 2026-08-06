@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/services.dart';
 import 'tv_remote_adapter.dart';
 import '../adapters/android_tv_adapter.dart';
 import '../adapters/samsung_tizen_adapter.dart';
@@ -7,6 +9,10 @@ import '../adapters/lg_webos_adapter.dart';
 import '../adapters/roku_adapter.dart';
 import '../adapters/amazon_fire_tv_adapter.dart';
 import '../adapters/apple_tv_adapter.dart';
+import 'logger/app_logger.dart';
+import '../for_ads/utils/firebase_analysis.dart';
+import '../services/country_app_catalog.dart';
+import '../for_ads/utils/shared_prefrence_service.dart';
 
 enum TvConnectionState {
   disconnected,
@@ -52,6 +58,14 @@ class TvRemoteManager extends ChangeNotifier {
   TvDevice? _currentDevice;
   TvDevice? get currentDevice => _currentDevice;
 
+  DateTime? _sessionStartTime;
+  bool _wasDiscoverySuccessful = false;
+  bool _wasTlsSuccessful = false;
+  bool _wasPairingStarted = false;
+  bool _wasPinDisplayed = false;
+  bool _wasSecretAckReceived = false;
+  bool _wasControlConnectionEstablished = false;
+
   TvConnectionState _connectionState = TvConnectionState.disconnected;
   TvConnectionState get connectionState => _connectionState;
 
@@ -67,6 +81,9 @@ class TvRemoteManager extends ChangeNotifier {
   String? _pairingStatusMessage;
   String? get pairingStatusMessage => _pairingStatusMessage;
 
+  String? _loadingMessage;
+  String? get loadingMessage => _loadingMessage;
+
   bool _bypassAuthentication = false;
   bool get bypassAuthentication => _bypassAuthentication;
   set bypassAuthentication(bool value) {
@@ -74,10 +91,63 @@ class TvRemoteManager extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _bypassToPairing = false;
+  bool get bypassToPairing => _bypassToPairing;
+  set bypassToPairing(bool value) {
+    _bypassToPairing = value;
+    notifyListeners();
+  }
+
   final List<StreamSubscription> _subscriptions = [];
+
+  bool _isWifiConnected = true;
+  bool get isWifiConnected => _isWifiConnected;
+
+  List<ConnectivityResult> _currentConnectivity = [];
+  List<ConnectivityResult> get currentConnectivity => _currentConnectivity;
 
   TvRemoteManager() {
     _initLogging();
+    _initConnectivityListener();
+  }
+
+  void _initConnectivityListener() {
+    Connectivity().checkConnectivity().then((result) {
+      _updateWifiStatus(result);
+    });
+
+    final sub = Connectivity().onConnectivityChanged.listen((result) {
+      _updateWifiStatus(result);
+    });
+    _subscriptions.add(sub);
+  }
+
+  void _updateWifiStatus(List<ConnectivityResult> result) {
+    _currentConnectivity = result;
+    final hasWifi = result.contains(ConnectivityResult.wifi) ||
+                    result.contains(ConnectivityResult.ethernet);
+    if (_isWifiConnected != hasWifi) {
+      _isWifiConnected = hasWifi;
+      addLocalLog('INFO', 'MANAGER', 'Network connectivity changed. Wi-Fi connected: $_isWifiConnected');
+      notifyListeners();
+
+      if (!_isWifiConnected) {
+        if (_isScanning) {
+          addLocalLog('WARN', 'MANAGER', 'Wi-Fi disconnected. Pausing active scanner.');
+        }
+        if (_connectionState == TvConnectionState.connected ||
+            _connectionState == TvConnectionState.connecting ||
+            _connectionState == TvConnectionState.pairing) {
+          addLocalLog('WARN', 'MANAGER', 'Wi-Fi lost. Disconnecting active session.');
+          disconnect();
+        }
+      } else {
+        if (_isScanning) {
+          addLocalLog('INFO', 'MANAGER', 'Wi-Fi reconnected. Restarting scan.');
+          stopScan().then((_) => startScan());
+        }
+      }
+    }
   }
 
   void _initLogging() {
@@ -94,10 +164,25 @@ class TvRemoteManager extends ChangeNotifier {
             timestamp = DateTime.now();
           }
 
+          final lvl = logData['level'] as String? ?? 'DEBUG';
+          final tag = logData['tag'] as String? ?? 'NATIVE';
+          final message = logData['message'] as String? ?? '';
+
+          // Forward to AppLogger
+          if (lvl == 'ERROR') {
+            AppLogger.error(tag, message);
+          } else if (lvl == 'WARN') {
+            AppLogger.warning(tag, message);
+          } else if (lvl == 'INFO') {
+            AppLogger.info(tag, message);
+          } else {
+            AppLogger.debug(tag, message);
+          }
+
           final entry = LogEntry(
-            level: logData['level'] as String? ?? 'DEBUG',
-            tag: logData['tag'] as String? ?? 'NATIVE',
-            message: logData['message'] as String? ?? '',
+            level: lvl,
+            tag: tag,
+            message: message,
             timestamp: timestamp,
           );
           _logs.add(entry);
@@ -116,6 +201,17 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   void addLocalLog(String level, String tag, String message) {
+    // Forward to AppLogger
+    if (level == 'ERROR') {
+      AppLogger.error(tag, message);
+    } else if (level == 'WARN') {
+      AppLogger.warning(tag, message);
+    } else if (level == 'INFO') {
+      AppLogger.info(tag, message);
+    } else {
+      AppLogger.debug(tag, message);
+    }
+
     _logs.add(LogEntry(
       level: level,
       tag: tag,
@@ -154,21 +250,42 @@ class TvRemoteManager extends ChangeNotifier {
     return adapters.firstWhere((a) => a is AndroidTvAdapter);
   }
 
+  TvRemoteAdapter? get activeAdapter {
+    if (_currentDevice == null) return null;
+    return _getAdapterForDevice(_currentDevice);
+  }
+
   Future<void> startScan() async {
     if (_isScanning) return;
+    if (!_isWifiConnected && !_bypassAuthentication && !_bypassToPairing) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot start scan: Wi-Fi is disconnected.');
+      return;
+    }
     _isScanning = true;
     _discoveredDevices = [];
+    _wasDiscoverySuccessful = false;
     notifyListeners();
 
+    FirebaseAnalyticsService.logEvent(eventName: 'ATV_SCAN_STARTED');
     addLocalLog('INFO', 'MANAGER', 'Starting network service discovery for all brands...');
     final Map<String, List<TvDevice>> brandDevices = {};
 
     final scanFutures = adapters.map((adapter) async {
       try {
+        if (adapter is! AndroidTvAdapter) {
+          await Future.delayed(const Duration(seconds: 1));
+        }
+        if (!_isScanning) return;
+
         await adapter.startDiscovery((devices) {
           if (devices.isNotEmpty) {
             final brand = devices.first.brand;
+            final isNewBrand = !brandDevices.containsKey(brand);
             brandDevices[brand] = devices;
+
+            if (isNewBrand) {
+              FirebaseAnalyticsService.logEvent(eventName: 'ATV_DEVICE_FOUND_${brand.toUpperCase().replaceAll(' ', '_')}');
+            }
 
             // Merge devices from all brands
             final allDevices = <TvDevice>[];
@@ -176,6 +293,9 @@ class TvRemoteManager extends ChangeNotifier {
               allDevices.addAll(list);
             });
             _discoveredDevices = allDevices;
+            if (allDevices.isNotEmpty) {
+              _wasDiscoverySuccessful = true;
+            }
             notifyListeners();
           }
         });
@@ -199,6 +319,12 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   Future<void> connectToDevice(TvDevice device) async {
+    if (!_isWifiConnected && !_bypassAuthentication && !_bypassToPairing) {
+      addLocalLog('WARN', 'MANAGER', 'Cannot connect: Wi-Fi is disconnected.');
+      _connectionState = TvConnectionState.failed;
+      notifyListeners();
+      return;
+    }
     _currentDevice = device;
     if (_bypassAuthentication) {
       _connectionState = TvConnectionState.connected;
@@ -207,33 +333,85 @@ class TvRemoteManager extends ChangeNotifier {
       return;
     }
 
+    if (_bypassToPairing) {
+      _connectionState = TvConnectionState.pairing;
+      _pairingPin = '123456';
+      addLocalLog('INFO', 'MANAGER', 'Connecting to TV: ${device.name} (Bypassing to pairing screen)...');
+      notifyListeners();
+      return;
+    }
+
+    _sessionStartTime = DateTime.now();
+    _wasTlsSuccessful = false;
+    _wasPairingStarted = false;
+    _wasPinDisplayed = false;
+    _wasSecretAckReceived = false;
+    _wasControlConnectionEstablished = false;
+
+    _loadingMessage = "Connecting to TV...";
     _connectionState = TvConnectionState.connecting;
     notifyListeners();
 
+    FirebaseAnalyticsService.logEvent(eventName: 'ATV_DEVICE_TAPPED');
+    FirebaseAnalyticsService.logEvent(eventName: 'ATV_TLS_CONNECTING');
     final activeAdapter = _getAdapterForDevice(device);
-    addLocalLog('INFO', 'MANAGER', 'Connecting to TV: ${device.name} (${device.ipAddress}:${device.port})...');
+    addLocalLog('INFO', 'CONNECT', 'User selected TV. Name: ${device.name}, IP: ${device.ipAddress}, Port: ${device.port}, Brand: ${device.brand}, Session ID: ${AppLogger.sessionId}');
 
-    final success = await activeAdapter.connect(device);
-    if (success) {
-      addLocalLog('INFO', 'MANAGER', 'Connection established. Initiating pairing check.');
-      _connectionState = TvConnectionState.pairing;
-      notifyListeners();
+    try {
+      final success = await activeAdapter.connect(device);
+      if (success) {
+        activeAdapter.onConnectionLost = () {
+          addLocalLog('WARN', 'MANAGER', 'Connection lost natively via callback.');
+          _connectionState = TvConnectionState.disconnected;
+          notifyListeners();
+        };
 
-      // Trigger pairing session automatically
-      await _startPairingFlow();
-    } else {
-      addLocalLog('ERROR', 'MANAGER', 'Connection failed to TV ${device.name}.');
-      _connectionState = TvConnectionState.failed;
-      notifyListeners();
+        // ✅ Connection successful - TV already paired
+        FirebaseAnalyticsService.logEvent(eventName: 'ATV_TLS_SUCCESS');
+        _connectionState = TvConnectionState.connected;
+        _wasTlsSuccessful = true;
+        _wasControlConnectionEstablished = true;
+        addLocalLog('INFO', 'MANAGER', 'Connection established. TV is ready to control.');
+        notifyListeners();
+        _endSession(null);  // Session ended successfully
+      } else {
+        // ❌ Connection failed completely
+        FirebaseAnalyticsService.logEvent(eventName: 'ATV_TLS_FAILED');
+        addLocalLog('ERROR', 'MANAGER', 'Connection failed to TV ${device.name}.');
+        _connectionState = TvConnectionState.failed;
+        notifyListeners();
+        _endSession('Connection handshake failed (success was false)');
+      }
+    } on PlatformException catch (e) {
+      if (e.code == 'NEEDS_PAIRING') {
+        // ⚠️ Connection failed but TV needs pairing
+        FirebaseAnalyticsService.logEvent(eventName: 'ATV_TLS_NEEDS_PAIRING');
+        _connectionState = TvConnectionState.pairing;
+        notifyListeners();
+        await _startPairingFlow();
+      } else {
+        // ❌ Connection failed completely
+        FirebaseAnalyticsService.logEvent(eventName: 'ATV_TLS_FAILED');
+        addLocalLog('ERROR', 'MANAGER', 'Connection failed to TV ${device.name}.');
+        _connectionState = TvConnectionState.failed;
+        notifyListeners();
+        _endSession('Connection handshake failed');
+      }
     }
   }
 
   Future<void> _startPairingFlow() async {
+    _loadingMessage = null;
+    notifyListeners();
     final activeAdapter = _getAdapterForDevice(_currentDevice);
+    FirebaseAnalyticsService.logEvent(eventName: 'ATV_PAIRING_STARTED');
     addLocalLog('INFO', 'MANAGER', 'Starting pairing handshake protocol...');
+    _wasPairingStarted = true;
     final success = await activeAdapter.startPairing(
       onPin: (pin) {
         _pairingPin = pin;
+        _wasPinDisplayed = true;
+        FirebaseAnalyticsService.logEvent(eventName: 'ATV_PIN_DISPLAYED');
         addLocalLog('INFO', 'MANAGER', 'Pairing info displayed: $pin');
         notifyListeners();
       },
@@ -241,29 +419,85 @@ class TvRemoteManager extends ChangeNotifier {
         _pairingStatusMessage = status;
         addLocalLog('DEBUG', 'MANAGER', 'Pairing state changed natively to: $status');
         if (status == 'SUCCESS' || status == 'CONFIRMED' || status == 'CONNECTED') {
+          _wasSecretAckReceived = true;
+          _wasControlConnectionEstablished = true;
+          _wasTlsSuccessful = true;
           _connectionState = TvConnectionState.connected;
+          FirebaseAnalyticsService.logEvent(eventName: 'ATV_PAIRING_SUCCESS');
+          FirebaseAnalyticsService.logEvent(eventName: 'ATV_CONTROL_CONNECTED');
           addLocalLog('INFO', 'MANAGER', 'TV Remote pairing successfully completed! Remote is ready.');
+          
+          activeAdapter.onConnectionLost = () {
+            addLocalLog('WARN', 'MANAGER', 'Connection lost natively via callback.');
+            _connectionState = TvConnectionState.disconnected;
+            notifyListeners();
+          };
+
+          notifyListeners();
+          _endSession(null);
         } else if (status == 'FAILED') {
           _connectionState = TvConnectionState.failed;
+          FirebaseAnalyticsService.logEvent(eventName: 'ATV_PAIRING_FAILED');
           addLocalLog('ERROR', 'MANAGER', 'TV Remote pairing failed.');
+          notifyListeners();
+          _endSession('Pairing handshake status reported FAILED');
+        } else {
+          notifyListeners();
         }
-        notifyListeners();
       },
     );
 
     if (!success) {
+      FirebaseAnalyticsService.logEvent(eventName: 'ATV_PAIRING_START_FAILED');
       addLocalLog('ERROR', 'MANAGER', 'Failed to start pairing handshake.');
       _connectionState = TvConnectionState.failed;
       notifyListeners();
+      _endSession('Failed to start pairing handshake');
     }
   }
 
+  void _endSession(String? failureReason) {
+    _loadingMessage = null;
+    if (_sessionStartTime == null) return;
+    final duration = DateTime.now().difference(_sessionStartTime!).inMilliseconds;
+    final finalState = _connectionState.name;
+
+    final summary = {
+      'deviceName': _currentDevice?.name ?? 'Unknown',
+      'ipAddress': _currentDevice?.ipAddress ?? 'Unknown',
+      'controlPort': 6466,
+      'pairingPort': 6467,
+      'finalState': finalState,
+      'wasDiscoverySuccessful': _wasDiscoverySuccessful,
+      'wasTlsSuccessful': _wasTlsSuccessful,
+      'wasPairingStarted': _wasPairingStarted,
+      'wasPinDisplayed': _wasPinDisplayed,
+      'wasSecretAckReceived': _wasSecretAckReceived,
+      'wasControlConnectionEstablished': _wasControlConnectionEstablished,
+      'totalDurationMs': duration,
+      'failureReason': failureReason,
+    };
+
+    AppLogger.endSession(summary);
+    _sessionStartTime = null;
+  }
+
   Future<void> submitPin(String pin) async {
+    if (_bypassToPairing) {
+      addLocalLog('INFO', 'MANAGER', '[BYPASS] Mock submitting PIN: $pin');
+      _connectionState = TvConnectionState.connected;
+      notifyListeners();
+      return;
+    }
     if (_connectionState != TvConnectionState.pairing) return;
+    _loadingMessage = "Verifying PIN code...";
+    notifyListeners();
     final activeAdapter = _getAdapterForDevice(_currentDevice);
+    FirebaseAnalyticsService.logEvent(eventName: 'ATV_PIN_SUBMITTED');
     addLocalLog('INFO', 'MANAGER', 'Submitting pairing PIN code: $pin');
     final success = await activeAdapter.sendPin(pin);
     if (!success) {
+      FirebaseAnalyticsService.logEvent(eventName: 'ATV_PIN_SUBMIT_FAILED');
       addLocalLog('ERROR', 'MANAGER', 'PIN submission failed.');
       notifyListeners();
     }
@@ -309,14 +543,13 @@ class TvRemoteManager extends ChangeNotifier {
           {'id': 'Spotify', 'name': 'Spotify', 'iconUrl': ''},
         ];
       }
-      return [
-        {'id': 'com.google.android.youtube.tv', 'name': 'YouTube', 'iconUrl': ''},
-        {'id': 'com.netflix.ninja', 'name': 'Netflix', 'iconUrl': ''},
-        {'id': 'com.amazon.amazonvideo.livingroom', 'name': 'Prime Video', 'iconUrl': ''},
-        {'id': 'com.disney.disneyplus', 'name': 'Disney+', 'iconUrl': ''},
-        {'id': 'com.plexapp.android', 'name': 'Plex', 'iconUrl': ''},
-        {'id': 'com.spotify.tv.android', 'name': 'Spotify', 'iconUrl': ''},
-      ];
+      final countryCode = SharedPrefService.getCountryCode() ?? 'US';
+      final catalogApps = CountryAppCatalog().getAppsForCountry(countryCode);
+      return catalogApps.map((app) => {
+        'id': app.id,
+        'name': app.name,
+        'iconUrl': app.iconAsset,
+      }).toList();
     }
     final activeAdapter = _getAdapterForDevice(_currentDevice);
     addLocalLog('DEBUG', 'MANAGER', 'Querying installed apps...');
@@ -382,7 +615,7 @@ class TvRemoteManager extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
-    if (_bypassAuthentication) {
+    if (_bypassAuthentication || _bypassToPairing) {
       addLocalLog('INFO', 'MANAGER', '[BYPASS] Disconnecting mock session...');
       _currentDevice = null;
       _connectionState = TvConnectionState.disconnected;
@@ -392,13 +625,16 @@ class TvRemoteManager extends ChangeNotifier {
       return;
     }
     final activeAdapter = _getAdapterForDevice(_currentDevice);
+    FirebaseAnalyticsService.logEvent(eventName: 'ATV_USER_DISCONNECTED');
     addLocalLog('INFO', 'MANAGER', 'Disconnecting session...');
+    _endSession('User disconnected');
     try {
       await activeAdapter.stopCasting();
     } catch (e) {
       addLocalLog('WARN', 'MANAGER', 'Error stopping casting on disconnect: $e');
     }
     await activeAdapter.disconnect();
+    activeAdapter.onConnectionLost = null;
     _currentDevice = null;
     _connectionState = TvConnectionState.disconnected;
     _pairingPin = null;

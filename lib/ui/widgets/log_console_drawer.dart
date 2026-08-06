@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import '../../core/tv_remote_manager.dart';
 import '../themes/app_theme.dart';
 
@@ -128,11 +129,10 @@ class _LogConsoleDrawerState extends State<LogConsoleDrawer> {
                   onPressed: () {
                     final allLogsText = filteredLogs.map((l) => l.toString()).join('\n');
                     Clipboard.setData(ClipboardData(text: allLogsText));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Console logs copied to clipboard'),
-                        backgroundColor: AppTheme.surfaceElevated,
-                      ),
+                    Fluttertoast.showToast(
+                      msg: 'Console logs copied to clipboard',
+                      backgroundColor: AppTheme.surfaceElevated,
+                      textColor: Colors.white,
                     );
                   },
                 ),

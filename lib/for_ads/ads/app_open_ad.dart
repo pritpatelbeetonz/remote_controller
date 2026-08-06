@@ -1,6 +1,6 @@
 import 'dart:developer';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+// import 'package:get/get.dart'; // removed: Get.to/Get.back no longer needed
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'ads_variable.dart';
@@ -48,7 +48,7 @@ class AppOpenAdManager {
   /// If the previously cached ad has expired, this just loads and caches a
   /// new ad.
   void showAdIfAvailable(adId) async {
-    if(AdsVariable.isPurchase){
+    if (AdsVariable.isPurchase) {
       return;
     }
     if (AdsVariable.appOpenAd == null) {
@@ -64,11 +64,10 @@ class AppOpenAdManager {
       print('Tried to show ad while already showing an ad.');
       return;
     }
-    // if (DateTime.now().subtract(maxCacheDuration).isAfter(_appOpenLoadTime!)) {
-    //   loadAd(adId);
-    //   print('Maximum cache duration exceeded. Loading another ad.');
-    //   return;
-    // }
+
+    // FIX: Set fullScreenContentCallback BEFORE showing the ad,
+    // and remove Get.to(EmptyScreen()) + Get.back() which caused a white screen
+    // when the ad failed or dismissed unexpectedly.
     AdsVariable.appOpenAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (ad) {
         AdsVariable.isShowingAd = true;
@@ -76,17 +75,13 @@ class AppOpenAdManager {
         log("FullScreenContentCallback");
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
-        Get.back();
         print('$ad onAdFailedToShowFullScreenContent: $error');
         AdsVariable.isShowingAd = false;
         ad.dispose();
         AdsVariable.appOpenAd = null;
         loadAd(adId);
-
-        /// ad loaded function hear after testing
       },
       onAdDismissedFullScreenContent: (ad) {
-        Get.back();
         print('$ad onAdDismissedFullScreenContent');
         AdsVariable.isShowingAd = false;
         ad.dispose();
@@ -94,7 +89,6 @@ class AppOpenAdManager {
         loadAd(adId);
       },
     );
-    Get.to(EmptyScreen());
     await AdsVariable.appOpenAd!.show();
   }
 }
