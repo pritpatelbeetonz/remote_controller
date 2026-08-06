@@ -73,30 +73,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.2"
-  cloud_firestore:
-    dependency: "direct main"
-    description:
-      name: cloud_firestore
-      sha256: "2d33da4465bdb81b6685c41b535895065adcb16261beb398f5f3bbc623979e9c"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.6.12"
-  cloud_firestore_platform_interface:
-    dependency: transitive
-    description:
-      name: cloud_firestore_platform_interface
-      sha256: "413c4e01895cf9cb3de36fa5c219479e06cd4722876274ace5dfc9f13ab2e39b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.6.12"
-  cloud_firestore_web:
-    dependency: transitive
-    description:
-      name: cloud_firestore_web
-      sha256: c1e30fc4a0fcedb08723fb4b1f12ee4e56d937cbf9deae1bda43cbb6367bb4cf
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.4.12"
   code_assets:
     dependency: transitive
     description:
@@ -1000,6 +976,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  showcaseview:
+    dependency: "direct main"
+    description:
+      name: showcaseview
+      sha256: dad6e9c86dc870a29f29ff38f09278555790780464afc52e7aaf14e5ec490bd5
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.1.0"
   sky_engine:
     dependency: transitive
     description: flutter

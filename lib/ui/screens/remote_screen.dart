@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:ui';
+import '../../core/google_cast_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -70,6 +72,13 @@ class _RemoteScreenState extends State<RemoteScreen>
   bool _wasConnected = false;
   bool _isVoiceRecording = false;
 
+  final GoogleCastManager _castManager = GoogleCastManager();
+  CastSessionState _castState = CastSessionState.IDLE;
+  List<CastDevice> _castDevices = [];
+  StreamSubscription? _castStateSub;
+  StreamSubscription? _castDevicesSub;
+  bool _isScanningCast = false;
+
   @override
   void initState() {
     FirebaseAnalyticsService.logEvent(eventName: 'REMOTE_SCREEN');
@@ -92,11 +101,34 @@ class _RemoteScreenState extends State<RemoteScreen>
 
     _wasConnected = widget.manager.connectionState == TvConnectionState.connected;
     widget.manager.addListener(_onConnectionStateChange);
+
+    _castState = _castManager.currentState;
+    _castDevices = _castManager.discoveredDevices;
+    _castStateSub = _castManager.stateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _castState = state;
+          _isCasting = (state == CastSessionState.CASTING ||
+              state == CastSessionState.BUFFERING ||
+              state == CastSessionState.PAUSED);
+        });
+      }
+    });
+    _castDevicesSub = _castManager.devicesStream.listen((devices) {
+      if (mounted) {
+        setState(() {
+          _castDevices = devices;
+        });
+      }
+    });
+    _castManager.getSessionState();
   }
 
   @override
   void dispose() {
     widget.manager.removeListener(_onConnectionStateChange);
+    _castStateSub?.cancel();
+    _castDevicesSub?.cancel();
     _tabController.dispose();
     _castUrlController.dispose();
     _keyboardController.dispose();
@@ -309,38 +341,154 @@ class _RemoteScreenState extends State<RemoteScreen>
   // Cast URL
   Future<void> _startCast(String url, String type, {String? name}) async {
     if (!mounted) return;
+
+    final isGoogleCastConnected = (_castState == CastSessionState.CONNECTED ||
+        _castState == CastSessionState.CASTING ||
+        _castState == CastSessionState.BUFFERING ||
+        _castState == CastSessionState.PAUSED);
+
+    if (!isGoogleCastConnected) {
+      _showToast('Please connect to a Google Cast device first.', backgroundColor: AppTheme.warning);
+      _startCastDiscovery();
+      return;
+    }
+
     setState(() {
       _isCasting = true;
       _activeCastName = name ?? 'Web Stream';
     });
 
-    final success = await widget.manager.castMedia(
-      url: url,
-      type: type,
-      name: _activeCastName,
-    );
+    String? mime;
+    if (type == 'p') mime = 'image/jpeg';
+    if (type == 'v') mime = 'video/mp4';
+    if (type == 'm') mime = 'audio/mpeg';
 
-    if (!mounted) return;
-    if (!success) {
+    try {
+      final success = await _castManager.castMedia(
+        url: url,
+        mimeType: mime,
+        title: name ?? 'Cast Media',
+        subtitle: 'Streaming to Chromecast',
+      );
+      if (!mounted) return;
+      if (!success) {
+        setState(() {
+          _isCasting = false;
+          _activeCastName = null;
+        });
+        _showToast('Failed to cast to Google Cast device', backgroundColor: AppTheme.error);
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isCasting = false;
         _activeCastName = null;
       });
-      _showToast(
-        'Failed to start casting session',
-        backgroundColor: AppTheme.error,
-      );
+      _showToast('Unsupported media format.', backgroundColor: AppTheme.error);
     }
   }
 
   // Stop Cast
   Future<void> _stopCast() async {
-    await widget.manager.stopCasting();
-    setState(() {
-      _isCasting = false;
-      _activeCastName = null;
-    });
+    final isGoogleCastConnected = (_castState == CastSessionState.CONNECTED ||
+        _castState == CastSessionState.CASTING ||
+        _castState == CastSessionState.BUFFERING ||
+        _castState == CastSessionState.PAUSED);
+
+    if (isGoogleCastConnected) {
+      await _castManager.stop();
+    } else {
+      await widget.manager.stopCasting();
+    }
+
+    if (mounted) {
+      setState(() {
+        _isCasting = false;
+        _activeCastName = null;
+      });
+    }
     _showToast('Casting session stopped', backgroundColor: AppTheme.info);
+  }
+
+  void _startCastDiscovery() async {
+    if (_isScanningCast) return;
+    setState(() {
+      _isScanningCast = true;
+    });
+    _showToast('Scanning for Google Cast devices...', backgroundColor: AppTheme.info);
+    await _castManager.startDiscovery();
+
+    Future.delayed(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _castManager.stopDiscovery();
+      setState(() {
+        _isScanningCast = false;
+      });
+
+      final devices = _castManager.discoveredDevices;
+      if (devices.isEmpty) {
+        _showToast('No Cast devices found.', backgroundColor: AppTheme.error);
+      } else {
+        _showCastDevicePicker(devices);
+      }
+    });
+  }
+
+  void _showCastDevicePicker(List<CastDevice> devices) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E22),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Select Cast Device',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'SF Pro Display',
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final dev = devices[index];
+                    return ListTile(
+                      leading: const Icon(Icons.cast, color: Color(0xFF794DEB)),
+                      title: Text(
+                        dev.name,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        dev.modelName,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showToast('Connecting to ${dev.name}...', backgroundColor: AppTheme.info);
+                        _castManager.connect(dev.id);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // Pick and cast local file from mobile
@@ -459,7 +607,6 @@ class _RemoteScreenState extends State<RemoteScreen>
     final state = await widget.manager.activeAdapter?.getKeyboardState() ?? 'UNKNOWN';
     if (state == 'NO_TEXT_FIELD') {
       _showToast("Open a search box or text field on your TV first.", backgroundColor: AppTheme.warning);
-      return;
     } else if (state == 'CONNECTION_LOST') {
       _showToast("Connection to the TV has been lost.", backgroundColor: AppTheme.error);
       return;
@@ -495,6 +642,7 @@ class _RemoteScreenState extends State<RemoteScreen>
         break;
       case 'NO_TEXT_FIELD':
         _showToast("Open a search box or text field on your TV first.", backgroundColor: AppTheme.warning);
+        _showKeyboardModal();
         break;
       case 'READY':
         _showKeyboardModal();
@@ -523,8 +671,7 @@ class _RemoteScreenState extends State<RemoteScreen>
   bool get _supportsAppLauncher =>
       _isRoku || _isSamsung || _isAndroidTv || _isAmazonFireTv;
 
-  bool get _supportsCasting =>
-      _isRoku || _isSamsung || _isAndroidTv || _isLg || _isAppleTv;
+  bool get _supportsCasting => true;
 
   bool get _supportsKeyboard => _isRoku || _isSamsung || _isAndroidTv || _isLg;
 
@@ -577,6 +724,85 @@ class _RemoteScreenState extends State<RemoteScreen>
                         ),
                       ),
                     ),
+                    (_isScanningCast || _castState == CastSessionState.CONNECTING)
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF794DEB)),
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            icon: Icon(
+                              _castState == CastSessionState.CONNECTED ||
+                                      _castState == CastSessionState.CASTING ||
+                                      _castState == CastSessionState.BUFFERING ||
+                                      _castState == CastSessionState.PAUSED
+                                  ? Icons.cast_connected
+                                  : Icons.cast,
+                              color: _castState == CastSessionState.CONNECTED ||
+                                      _castState == CastSessionState.CASTING ||
+                                      _castState == CastSessionState.BUFFERING ||
+                                      _castState == CastSessionState.PAUSED
+                                  ? const Color(0xFF794DEB)
+                                  : Colors.white,
+                            ),
+                            onPressed: () {
+                              if (_castState == CastSessionState.CONNECTED ||
+                                  _castState == CastSessionState.CASTING ||
+                                  _castState == CastSessionState.BUFFERING ||
+                                  _castState == CastSessionState.PAUSED) {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: const Color(0xFF1E1E22),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      side: BorderSide(color: AppTheme.border),
+                                    ),
+                                    title: const Text(
+                                      'Disconnect Google Cast?',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'SF Pro Display',
+                                      ),
+                                    ),
+                                    content: const Text(
+                                      'Are you sure you want to stop casting to this device?',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                        fontFamily: 'SF Pro Display',
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(ctx).pop(),
+                                        child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(ctx).pop();
+                                          _castManager.disconnect();
+                                        },
+                                        style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+                                        child: const Text('Disconnect', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else {
+                                _startCastDiscovery();
+                              }
+                            },
+                          ),
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () async {
                         if (manager.connectionState == TvConnectionState.connected) {
@@ -1024,7 +1250,7 @@ class _RemoteScreenState extends State<RemoteScreen>
                                 onboarding: false,
                                 onDone: () {
                                   _checkKeyboardAndShowModal();
-                                },
+                                },  
                               ),
                             ),
                           );
@@ -2641,10 +2867,8 @@ class _RemoteScreenState extends State<RemoteScreen>
                           fontFamily: 'SF Pro Display',
                         ),
                         onChanged: (text) {
-                          if (_sendCharByChar && text.isNotEmpty) {
-                            widget.manager.sendText(
-                              text.substring(text.length - 1),
-                            );
+                          if (_sendCharByChar) {
+                            widget.manager.sendText(text);
                           }
                         },
                         onSubmitted: (text) {
@@ -2664,7 +2888,12 @@ class _RemoteScreenState extends State<RemoteScreen>
                               Icons.clear,
                               color: Colors.white30,
                             ),
-                            onPressed: () => _keyboardController.clear(),
+                            onPressed: () {
+                              _keyboardController.clear();
+                              if (_sendCharByChar) {
+                                widget.manager.sendText('');
+                              }
+                            },
                           ),
                         ),
                       ),

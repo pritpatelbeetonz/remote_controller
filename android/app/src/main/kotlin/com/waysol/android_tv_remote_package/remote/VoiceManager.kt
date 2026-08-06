@@ -7,8 +7,10 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import com.waysol.android_tv_remote_package.util.Logger
 import com.waysol.android_tv_remote_package.util.Constants
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.io.File
 
 class VoiceManager(
     private val context: Context,
@@ -26,7 +28,7 @@ class VoiceManager(
         private const val SAMPLE_RATE = 8000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-        private const val BUFFER_SIZE = 8192 // 8 KB
+        private const val BUFFER_SIZE = 512 // 512 bytes for lower latency and stable packets
     }
 
     @SuppressLint("MissingPermission")
@@ -54,7 +56,12 @@ class VoiceManager(
             }
 
             Logger.i(Constants.TAG_REMOTE, "🎙️ AudioRecord initialized successfully")
-            
+            Logger.i(Constants.TAG_REMOTE, "🎙️ AudioRecord initialized successfully")
+            val hasAudioFeature = context.packageManager.hasSystemFeature("android.hardware.microphone")
+            Logger.d(Constants.TAG_REMOTE, "Device has microphone: $hasAudioFeature")
+            File(context.cacheDir, "voice.pcm").delete()
+
+
             audioRecord?.startRecording()
             isRecording = true
             Logger.i(Constants.TAG_REMOTE, "▶️ AudioRecord recording started")
@@ -63,30 +70,83 @@ class VoiceManager(
             recordingExecutor = Executors.newSingleThreadExecutor()
             recordingExecutor?.submit {
                 val buffer = ByteArray(BUFFER_SIZE)
+                var noDataCount = 0
+                val accumulationStream = ByteArrayOutputStream()
+
                 while (isRecording) {
                     val read = audioRecord?.read(buffer, 0, buffer.size) ?: -1
-                    if (read > 0) {
-                        val dataToSend = if (read < buffer.size) {
-                            // Pad with zeros to 8KB
-                            val padded = ByteArray(buffer.size)
-                            System.arraycopy(buffer, 0, padded, 0, read)
-                            padded
-                        } else {
-                            buffer.clone()
-                        }
+                    Logger.d("VoiceDebug", "audioRecord.read() = $read")  // Add this!
+                    Logger.d("VoiceDebug", "read=$read")  // What does read() return?
 
-                        val success = remoteController.sendVoicePayload(sessionId, dataToSend)
-                        if (success) {
-                            chunkCount++
-                            totalBytesSent += dataToSend.size
-                            Logger.d(Constants.TAG_REMOTE, "📤 Voice chunk #$chunkCount transmitted (${dataToSend.size} bytes)")
-                        } else {
-                            Logger.e(Constants.TAG_REMOTE, "❌ Connection lost during voice streaming")
-                            break
+
+                    Logger.d(Constants.TAG_REMOTE, "AudioRecord.read() returned: $read")  // DEBUG
+                    Logger.d("VoiceDebug", "read=$read")  // What does read() return?
+                    if (read > 0) {
+                        noDataCount = 0  // Reset counter
+                        accumulationStream.write(buffer, 0, read)
+
+                        // If we have accumulated at least 8192 bytes, send it
+                        while (accumulationStream.size() >= 8192) {
+                            val accumulatedBytes = accumulationStream.toByteArray()
+                            val chunkSize = 8192
+                            val chunkToSend = accumulatedBytes.copyOfRange(0, chunkSize)
+
+                            Logger.i(
+                                "VoiceDebug",
+                                ">>> About to send voice chunk: size=${chunkToSend.size}, sessionId=$sessionId"
+                            )
+                            File(context.cacheDir, "voice.pcm").appendBytes(chunkToSend)
+                            val success = remoteController.sendVoiceChunk(sessionId, chunkToSend)
+
+                            Logger.i(
+                                "VoiceDebug",
+                                "<<< sendVoiceChunk() returned: $success"
+                            )
+
+                            Logger.d("VoiceDebug", "sendSuccess=$success")  // Did send work?
+
+                            if (success) {
+                                chunkCount++
+                                totalBytesSent += chunkToSend.size
+                                Logger.d(Constants.TAG_REMOTE, "📤 Voice chunk #$chunkCount transmitted (${chunkToSend.size} bytes)")
+                            } else {
+                                Logger.e(Constants.TAG_REMOTE, "❌ Connection lost during voice streaming")
+                                break
+                            }
+
+                            // Retain remainder
+                            accumulationStream.reset()
+                            if (accumulatedBytes.size > chunkSize) {
+                                accumulationStream.write(accumulatedBytes, chunkSize, accumulatedBytes.size - chunkSize)
+                            }
                         }
                     } else if (read < 0) {
                         Logger.e(Constants.TAG_REMOTE, "❌ AudioRecord read error: $read")
                         break
+                    } else {
+                        // read == 0: No data available
+                        noDataCount++
+                        if (noDataCount > 100) {  // ~5 seconds with 50ms sleep
+                            Logger.w(Constants.TAG_REMOTE, "⚠️ No audio data for 5 seconds, stopping")
+                            break
+                        }
+                        Thread.sleep(50)  // Prevent busy loop
+                    }
+                }
+
+                // Send remaining bytes padded to 8192 bytes if any exist
+                if (accumulationStream.size() > 0) {
+                    val remainingBytes = accumulationStream.toByteArray()
+                    val padded = ByteArray(8192)
+                    System.arraycopy(remainingBytes, 0, padded, 0, remainingBytes.size)
+
+                    val success = remoteController.sendVoiceChunk(sessionId, padded)
+                    if (success) {
+                        chunkCount++
+                        totalBytesSent += padded.size
+                        Logger.d(Constants.TAG_REMOTE, "📤 Final padded Voice chunk #$chunkCount transmitted (${padded.size} bytes)")
+                    } else {
+                        Logger.e(Constants.TAG_REMOTE, "❌ Connection lost sending final voice chunk")
                     }
                 }
             }

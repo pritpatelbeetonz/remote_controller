@@ -81,8 +81,8 @@ class _RatingscreenState extends State<Ratingscreen> {
                           }
                         }
                       } else {
-                        await checkAndShowInAppReview("FromRateusScreen");
                         Future.delayed(Duration(seconds: 2), () {
+                          if (!mounted) return;
                           setState(() {
                             isratedialog = true;
                           });

@@ -9,7 +9,7 @@ import com.waysol.android_tv_remote_package.util.Logger
 import kotlinx.coroutines.*
 
 class RemoteController(
-    private val tlsManager: TLSManager
+    val tlsManager: TLSManager
 ) {
 
     enum class KeyboardState {
@@ -31,6 +31,7 @@ class RemoteController(
     private var imeCounter: Int = 0
     private var imeFieldCounter: Int = 0
     private var isTextFieldFocused: Boolean = false
+    private var voicePayloadWireDumped: Boolean = false
 
     fun isConnected(): Boolean {
         return tlsManager.isConnected()
@@ -323,15 +324,54 @@ class RemoteController(
 
     fun sendVoicePayload(sessionId: Int, samples: ByteArray): Boolean {
         val message = ProtobufMessage.createVoicePayloadMessage(sessionId, samples)
-        return tlsManager.sendData(message)
+        if (!voicePayloadWireDumped) {
+            ProtobufMessage.logVoicePayloadWireFormat(sessionId, samples, message)
+            voicePayloadWireDumped = true
+        }
+
+        Log.d("VoicePayload", "Sending ${message.size} bytes to TLSManager")
+        val result = tlsManager.sendData(message)
+        Log.d("VoicePayload", "tlsManager.sendData returned: $result")
+
+        return result
+    }
+    fun sendVoiceChunk(sessionId: Int, samples: ByteArray): Boolean {
+        var chunk = samples
+        val minSize = 8192
+        val maxSize = 20480
+
+        // 1. Pad chunk to minimum size (8 KB) if it's smaller
+        if (chunk.size < minSize) {
+            val padded = ByteArray(minSize)
+            System.arraycopy(chunk, 0, padded, 0, chunk.size)
+            chunk = padded
+        }
+
+        // 2. Limit chunk size and send in loop
+        var success = true
+        var i = 0
+        while (i < chunk.size) {
+            val end = Math.min(chunk.size, i + maxSize)
+            val slice = chunk.copyOfRange(i, end)
+            if (!sendVoicePayload(sessionId, slice)) {
+                success = false
+            }
+            i += maxSize
+        }
+        return success
     }
 
     fun sendVoiceEnd(sessionId: Int): Boolean {
         Logger.i(Constants.TAG_COMMAND, "📤 Sending RemoteVoiceEnd for session $sessionId")
-        val message = ProtobufMessage.createVoiceEndMessage(sessionId)
-        return tlsManager.sendData(message)
-    }
 
+        val message = ProtobufMessage.createVoiceEndMessage(sessionId)
+
+        val success = tlsManager.sendData(message)
+
+        Logger.i(Constants.TAG_COMMAND, "📤 RemoteVoiceEnd send result = $success")
+
+        return success
+    }
     fun destroy() {
         try {
             listeningJob?.cancel()

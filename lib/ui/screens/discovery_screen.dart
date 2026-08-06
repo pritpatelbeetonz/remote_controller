@@ -15,6 +15,9 @@ import 'pairing_screen.dart';
 import 'package:lottie/lottie.dart';
 import 'remote_screen.dart';
 import 'package:remote_controller/for_ads/ads/ads_variable.dart';
+import 'package:showcaseview/showcaseview.dart';
+import '../../core/onboarding/onboarding_keys.dart';
+import '../../core/onboarding/onboarding_service.dart';
 import 'brand_selection_screen.dart';
 
 class DiscoveryScreen extends StatefulWidget {
@@ -68,6 +71,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         widget.manager.startScan();
+        OnboardingService().startTutorialIfNeeded(
+          context,
+          tutorialId: 'discovery_screen_tutorial',
+          keys: [
+            OnboardingKeys.discoveryAreaKey,
+            OnboardingKeys.connectManuallyButtonKey,
+            OnboardingKeys.ipAddressFieldKey,
+          ],
+        );
       }
     });
     widget.manager.addListener(_onStateChange);
@@ -320,19 +332,112 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    TextField(
-                      controller: _ipController,
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: Colors.white, fontSize: 16.sp, fontFamily: 'SF Pro Display'),
-                      decoration: InputDecoration(
-                        hintText: 'e.g, 192.168.1.100',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 16.sp),
-                        filled: true,
-                        fillColor: const Color(0xFF1E1E1E),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14.r),
-                          borderSide: BorderSide.none,
+                    Showcase(
+                      key: OnboardingKeys.ipAddressFieldKey,
+
+                      title: "Enter TV IP Address",
+
+                      description:
+                      "Enter your TV's IP address here,\nthen tap Connect to pair with your TV.",
+
+                      tooltipBackgroundColor: const Color(0xFF202124),
+                      textColor: Colors.white,
+
+                      tooltipBorderRadius: BorderRadius.circular(24.r),
+
+                      titleTextStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'SF Pro Display',
+                        letterSpacing: 0.2,
+                      ),
+
+                      descTextStyle: TextStyle(
+                        color: Colors.white.withOpacity(.75),
+                        fontSize: 14.sp,
+                        height: 1.45,
+                        fontFamily: 'SF Pro Display',
+                        fontWeight: FontWeight.w400,
+                      ),
+
+                      targetShapeBorder: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+
+                      tooltipPadding: EdgeInsets.symmetric(
+                        horizontal: 20.w,
+                        vertical: 18.h,
+                      ),
+
+                      tooltipActions: [
+                        TooltipActionButton(
+                          type: TooltipDefaultActionType.previous,
+                          backgroundColor: const Color(0xFF2A2A2E),
+                          textStyle: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                        ),
+
+                        TooltipActionButton(
+                          type: TooltipDefaultActionType.skip,
+                          name: "Finish",
+                          backgroundColor: const Color(0xFF794DEB),
+                          textStyle: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14.sp,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'SF Pro Display',
+                          ),
+                        ),
+                      ],
+
+                      child: TextField(
+                        controller: _ipController,
+                        keyboardType: TextInputType.number,
+
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontFamily: 'SF Pro Display',
+                        ),
+
+                        decoration: InputDecoration(
+                          hintText: 'e.g. 192.168.1.100',
+
+                          hintStyle: TextStyle(
+                            color: Colors.white.withOpacity(.30),
+                            fontSize: 16.sp,
+                          ),
+
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E1E),
+
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 18.w,
+                            vertical: 18.h,
+                          ),
+
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                            borderSide: BorderSide.none,
+                          ),
+
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                            borderSide: BorderSide.none,
+                          ),
+
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16.r),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF794DEB),
+                              width: 1.2,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -611,7 +716,29 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             return Column(
               children: [
                 SizedBox(height: 10.h),
-                const RadarIndicator(),
+                Showcase(
+                  key: OnboardingKeys.discoveryAreaKey,
+                  title: 'Connect to the Same Wi-Fi',
+                  description: 'Make sure your phone and TV are connected to the same Wi-Fi network. Once connected, nearby TVs will appear here automatically.',
+                  tooltipBackgroundColor: const Color(0xFF181F3D),
+                  textColor: Colors.white,
+                  tooltipBorderRadius: BorderRadius.circular(16.r),
+                  titleTextStyle: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                  descTextStyle: TextStyle(color: Colors.white70, fontSize: 14.sp, fontFamily: 'SF Pro Display'),
+                  targetShapeBorder: const CircleBorder(),
+                  tooltipActions: [
+                    TooltipActionButton(
+                      type: TooltipDefaultActionType.skip,
+                      backgroundColor: const Color(0xFF1E1E22),
+                      textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                    ),
+                    TooltipActionButton(
+                      type: TooltipDefaultActionType.next,
+                      textStyle: TextStyle(color: Colors.white, fontSize: 14.sp),
+                    ),
+                  ],
+                  child: const RadarIndicator(),
+                ),
                 SizedBox(height: 16.h),
                 _buildSelectBrandButton(),
                 SizedBox(height: 16.h),
@@ -640,31 +767,67 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 const Spacer(),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _showManualInput = true;
-                      });
-                    },
-                    child: Container(
-                      alignment: Alignment.center,
-                      width: double.infinity,
-                      height: 56.h,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(33.33.r),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
-                        ),
+                  child: Showcase(
+                    key: OnboardingKeys.connectManuallyButtonKey,
+                    title: 'Connect Manually',
+                    description: "Can't find your TV? Tap Connect Manually to connect using your TV's IP address.",
+                    tooltipBackgroundColor: const Color(0xFF181F3D),
+                    textColor: Colors.white,
+                    tooltipBorderRadius: BorderRadius.circular(16.r),
+                    titleTextStyle: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                    descTextStyle: TextStyle(color: Colors.white70, fontSize: 14.sp, fontFamily: 'SF Pro Display'),
+                    targetShapeBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(33.33.r)),
+                    tooltipActions: [
+                      TooltipActionButton(
+                        type: TooltipDefaultActionType.previous,
+                        backgroundColor: const Color(0xFF1E1E22),
+                        textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
                       ),
-                      child: Text(
-                        'Connect Manually',
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          color: Colors.white,
-                          fontFamily: 'SF Pro Display',
-                          fontWeight: FontWeight.w700,
+                      TooltipActionButton(
+                        type: TooltipDefaultActionType.skip,
+                        backgroundColor: const Color(0xFF1E1E22),
+                        textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                      ),
+                      TooltipActionButton(
+                        type: TooltipDefaultActionType.next,
+                        backgroundColor: const Color(0xFF794DEB),
+                        textStyle: TextStyle(color: Colors.white, fontSize: 13.sp, fontWeight: FontWeight.bold, fontFamily: 'SF Pro Display'),
+                        onTap: () {
+                          setState(() {
+                            _showManualInput = true;
+                          });
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            ShowcaseView.get().next(force: true);
+                          });
+                        },
+                      ),
+                    ],
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _showManualInput = true;
+                        });
+                      },
+                      child: Container(
+                        alignment: Alignment.center,
+                        width: double.infinity,
+                        height: 56.h,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(33.33.r),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF794DEB), Color(0xFF512CB8)],
+                          ),
+                        ),
+                        child: Text(
+                          'Connect Manually',
+                          style: TextStyle(
+                            fontSize: 18.sp,
+                            color: Colors.white,
+                            fontFamily: 'SF Pro Display',
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),

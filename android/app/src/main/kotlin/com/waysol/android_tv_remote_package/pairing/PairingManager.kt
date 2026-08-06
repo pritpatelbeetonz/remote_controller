@@ -39,7 +39,10 @@ class PairingManager(
             try {
                 setStatus(PairingStatus.CONNECTING)
                 Logger.i(Constants.TAG_PAIRING, "Pairing started")
-                Logger.i(Constants.TAG_PAIRING, "Opening pairing socket on port ${Constants.PORT_PAIRING}")
+                Logger.i(
+                    Constants.TAG_PAIRING,
+                    "Opening pairing socket on port ${Constants.PORT_PAIRING}"
+                )
                 Logger.i(Constants.TAG_TLS, "TLS established on port ${Constants.PORT_PAIRING}")
 
                 // 1. Send PairingRequest
@@ -101,7 +104,11 @@ class PairingManager(
                 setStatus(PairingStatus.WAITING_PIN)
 
             } catch (e: Exception) {
-                Logger.e(Constants.TAG_PAIRING, "Pairing handshake sequence failed: ${e.message}", e)
+                Logger.e(
+                    Constants.TAG_PAIRING,
+                    "Pairing handshake sequence failed: ${e.message}",
+                    e
+                )
                 setStatus(PairingStatus.FAILED)
             }
         }
@@ -114,7 +121,7 @@ class PairingManager(
             Logger.w(Constants.TAG_PAIRING, "Invalid PIN length: ${pin.length}")
             return false
         }
-        
+
         pairingJob = scope.launch {
             try {
                 setStatus(PairingStatus.PAIRING)
@@ -128,19 +135,23 @@ class PairingManager(
                 }
                 val alias = keyStore.aliases().nextElement()
                 Logger.i(Constants.TAG_PAIRING, "Client certificate loaded. Alias: $alias")
-                val clientCert = keyStore.getCertificate(alias) as java.security.cert.X509Certificate
-                
+                val clientCert =
+                    keyStore.getCertificate(alias) as java.security.cert.X509Certificate
+
                 // 2. Load TV peer certificate
                 Logger.i(Constants.TAG_PAIRING, "Reading TV certificate...")
-                val serverCert = tlsManager.getPeerCertificate() ?: throw Exception("Failed to retrieve TV peer certificate")
+                val serverCert = tlsManager.getPeerCertificate()
+                    ?: throw Exception("Failed to retrieve TV peer certificate")
                 Logger.i(Constants.TAG_PAIRING, "TV certificate loaded successfully")
 
                 // 3. Extract RSA mod/exp keys using safe casts
-                val clientPublicKey = clientCert.publicKey as? RSAPublicKey ?: throw Exception("Client key is not an RSA public key")
+                val clientPublicKey = clientCert.publicKey as? RSAPublicKey
+                    ?: throw Exception("Client key is not an RSA public key")
                 val clientModulus = clientPublicKey.modulus
                 val clientExponent = clientPublicKey.publicExponent
 
-                val serverPublicKey = serverCert.publicKey as? RSAPublicKey ?: throw Exception("Server key is not an RSA public key")
+                val serverPublicKey = serverCert.publicKey as? RSAPublicKey
+                    ?: throw Exception("Server key is not an RSA public key")
                 val serverModulus = serverPublicKey.modulus
                 val serverExponent = serverPublicKey.publicExponent
 
@@ -151,7 +162,7 @@ class PairingManager(
                 h.update(getUnsignedBytes(clientExponent))
                 h.update(getUnsignedBytes(serverModulus))
                 h.update(getUnsignedBytes(serverExponent))
-                
+
                 val pinSuffixHex = pin.substring(2)
                 h.update(hexStringToByteArray(pinSuffixHex))
                 val hashResult = h.digest()
@@ -161,7 +172,10 @@ class PairingManager(
                 val firstByte = hashResult[0].toInt() and 0xFF
                 val expectedFirstByte = pin.substring(0, 2).toInt(16)
                 if (firstByte != expectedFirstByte) {
-                    Logger.w(Constants.TAG_PAIRING, "Warning: Local hash first-byte verification failed.")
+                    Logger.w(
+                        Constants.TAG_PAIRING,
+                        "Warning: Local hash first-byte verification failed."
+                    )
                 }
 
                 // 5. Send Secret message containing PIN hash signature
@@ -179,7 +193,10 @@ class PairingManager(
                     Logger.i(Constants.TAG_PAIRING, "Pairing successful")
                     setStatus(PairingStatus.SUCCESS)
                 } else {
-                    Logger.e(Constants.TAG_PAIRING, "Pairing rejected by TV (received null response).")
+                    Logger.e(
+                        Constants.TAG_PAIRING,
+                        "Pairing rejected by TV (received null response)."
+                    )
                     setStatus(PairingStatus.FAILED)
                 }
 
@@ -192,18 +209,51 @@ class PairingManager(
     }
 
     private fun sendProtobuf(data: ByteArray, typeName: String, fieldName: String): Boolean {
-        Logger.i(Constants.TAG_PROTOBUF, "Outgoing Message\nType: $typeName\nSize: ${data.size}\nField Name: $fieldName")
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            "Outgoing Message\nType: $typeName\nSize: ${data.size}\nField Name: $fieldName"
+        )
         return tlsManager.sendData(data)
     }
 
-    private fun receiveProtobuf(expectedField: Int, typeName: String, fieldName: String): ByteArray? {
+    private fun receiveProtobuf(
+        expectedField: Int,
+        typeName: String,
+        fieldName: String
+    ): ByteArray? {
+
         val data = tlsManager.receiveData() ?: return null
+
         val field = MessageParser.getOuterMessageField(data)
-        Logger.i(Constants.TAG_PROTOBUF, "Incoming Message\nType: $typeName\nSize: ${data.size}\nField Name: $fieldName")
+
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            """
+📥 Incoming Protobuf
+Type          : $typeName
+Expected Field: $expectedField
+Received Field: $field
+Size          : ${data.size} bytes
+Field Name    : $fieldName
+Hex           : ${data.joinToString(" ") { "%02X".format(it) }}
+""".trimIndent()
+        )
+
         if (field != expectedField) {
-            Logger.e(Constants.TAG_PROTOBUF, "Unknown protobuf message\nRaw size: ${data.size}\nReason: Expected field $expectedField ($typeName), received $field")
+            Logger.e(
+                Constants.TAG_PROTOBUF,
+                """
+❌ Unexpected protobuf received
+Expected Field : $expectedField ($typeName)
+Received Field : $field
+Raw Hex        : ${data.joinToString(" ") { "%02X".format(it) }}
+""".trimIndent()
+            )
             return null
         }
+
+        Logger.i(Constants.TAG_PROTOBUF, "✅ Protobuf matched expected type: $typeName")
+
         return data
     }
 
@@ -220,7 +270,8 @@ class PairingManager(
         val data = ByteArray(len / 2)
         var i = 0
         while (i < len) {
-            data[i / 2] = ((Character.digit(s[i], 16) shl 4) + Character.digit(s[i + 1], 16)).toByte()
+            data[i / 2] =
+                ((Character.digit(s[i], 16) shl 4) + Character.digit(s[i + 1], 16)).toByte()
             i += 2
         }
         return data

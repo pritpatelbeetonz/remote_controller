@@ -90,6 +90,10 @@ dependencies {
     // Kotlin Coroutines for asynchronous socket/pairing flows
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
+
+    // Google Cast Sender SDK & MediaRouter
+    implementation("androidx.mediarouter:mediarouter:1.2.5")
+    implementation("com.google.android.gms:play-services-cast-framework:22.3.1")
 }
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {

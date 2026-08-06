@@ -126,6 +126,9 @@ class MainActivity : FlutterActivity() {
         plugin = AndroidTVRemotePlugin(this)
         plugin?.setupChannel(flutterEngine)
 
+        // Initialize Google Cast MethodChannel Handler
+        com.waysol.android_tv_remote_package.google_cast.CastMethodHandler(this, flutterEngine.dartExecutor.binaryMessenger)
+
         super.configureFlutterEngine(flutterEngine)
     }
 

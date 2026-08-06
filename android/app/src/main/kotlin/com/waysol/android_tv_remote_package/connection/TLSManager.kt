@@ -6,14 +6,14 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
 import javax.net.ssl.SSLSocket
-
+import android.util.Log
 class TLSManager(
     private val sslContext: javax.net.ssl.SSLContext
 ) {
 
-    private var socket: SSLSocket? = null
+    var socket: SSLSocket? = null
     private var inputStream: DataInputStream? = null
-    private var outputStream: DataOutputStream? = null
+    var outputStream: DataOutputStream? = null
 
     @Throws(Exception::class)
     fun connect(host: String, port: Int): Boolean {
@@ -65,17 +65,27 @@ class TLSManager(
         throw IOException("Varint too long")
     }
 
-    @Throws(IOException::class)
+    // TODO: Implement a single-threaded queue-based socket writer as the preferred long-term design.
     fun sendData(data: ByteArray): Boolean {
         return try {
             outputStream?.let {
+                Log.d("TLSManager", "Socket connected: ${socket?.isConnected}")
+                Log.d("TLSManager", "Writing varint length: ${data.size}")
                 writeVarint(it, data.size)
+
+                Log.d("TLSManager", "Writing ${data.size} bytes")
                 it.write(data)
+
+                Log.d("TLSManager", "Flushing...")
                 it.flush()
+                Log.d("TLSManager", "Flush complete")
                 true
-            } ?: false
+            } ?: run {
+                Log.e("TLSManager", "outputStream is null!")
+                false
+            }
         } catch (e: Exception) {
-            Logger.e(Constants.TAG_SOCKET, "Send failed: ${e.message}", e)
+            Log.e("TLSManager", "sendData error: ${e.message}", e)
             false
         }
     }

@@ -808,6 +808,8 @@ class AndroidTVRemotePlugin(
 
     private var voiceManager: VoiceManager? = null
     private var voiceSessionId: Int? = null
+    private var voiceReadyLock: java.util.concurrent.CountDownLatch? = null
+    private var voiceStartAborted = false
 
     private fun startVoice(result: MethodChannel.Result) {
         Logger.i(Constants.TAG_PLUGIN, "🎙️ Voice session requested")
@@ -836,9 +838,12 @@ class AndroidTVRemotePlugin(
             return
         }
 
+        voiceStartAborted = false
+        val readyLock = java.util.concurrent.CountDownLatch(1)
+        voiceReadyLock = readyLock
+
         scope.launch(Dispatchers.IO) {
             try {
-                val readyLock = java.util.concurrent.CountDownLatch(1)
                 var session: Int? = null
 
                 controller.onVoiceBegin = { sid ->
@@ -850,6 +855,7 @@ class AndroidTVRemotePlugin(
                 val searchSuccess = controller.sendKeyCode(KeyCode.SEARCH)
                 if (!searchSuccess) {
                     controller.onVoiceBegin = null
+                    voiceReadyLock = null
                     Handler(Looper.getMainLooper()).post {
                         Logger.e(Constants.TAG_PLUGIN, "❌ Unexpected voice session error: Failed to send KEYCODE_SEARCH")
                         result.error("AUDIO_RECORD_ERROR", "Failed to send SEARCH keycode", null)
@@ -860,11 +866,22 @@ class AndroidTVRemotePlugin(
                 Logger.i(Constants.TAG_PLUGIN, "⏳ Waiting for RemoteVoiceBegin...")
                 val received = readyLock.await(2, java.util.concurrent.TimeUnit.SECONDS)
                 controller.onVoiceBegin = null
+                voiceReadyLock = null
+
+                if (voiceStartAborted) {
+                    Logger.i(Constants.TAG_PLUGIN, "🛑 Voice session setup aborted by user request")
+                    Handler(Looper.getMainLooper()).post {
+                        result.error("ABORTED", "Voice session setup aborted by user request", null)
+                    }
+                    return@launch
+                }
 
                 val activeSession = session
                 if (received && activeSession != null) {
                     Logger.i(Constants.TAG_PLUGIN, "📥 RemoteVoiceBegin received")
                     Logger.i(Constants.TAG_PLUGIN, "🆔 Session ID assigned: $activeSession")
+                    Logger.i(Constants.TAG_PLUGIN, "Socket connected: ${controller.tlsManager.socket?.isConnected}")  // ← ADD THIS
+                    Logger.i(Constants.TAG_PLUGIN, "OutputStream ready: ${controller.tlsManager.outputStream != null}")
                     voiceSessionId = activeSession
 
                     // Reply to TV with Voice Begin
@@ -892,6 +909,7 @@ class AndroidTVRemotePlugin(
                 }
             } catch (e: Exception) {
                 controller.onVoiceBegin = null
+                voiceReadyLock = null
                 Handler(Looper.getMainLooper()).post {
                     Logger.e(Constants.TAG_PLUGIN, "❌ Unexpected voice session error: ${e.message}", e)
                     result.error("AUDIO_RECORD_ERROR", e.message, null)
@@ -907,9 +925,12 @@ class AndroidTVRemotePlugin(
             return
         }
 
+        voiceStartAborted = true
+        voiceReadyLock?.countDown()
+
         val sessionId = voiceSessionId
         if (sessionId == null) {
-            result.success(mapOf("success" to true, "message" to "No active voice session"))
+            result.success(mapOf("success" to true, "message" to "No active voice session or session cancelled before handshake"))
             return
         }
 

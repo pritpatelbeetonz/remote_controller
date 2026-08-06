@@ -1,6 +1,8 @@
 package com.waysol.android_tv_remote_package.protocol
 
 import java.io.ByteArrayOutputStream
+import com.waysol.android_tv_remote_package.util.Constants
+import com.waysol.android_tv_remote_package.util.Logger
 
 /**
  * Protobuf message building for Android TV Remote protocol v2
@@ -202,13 +204,194 @@ object ProtobufMessage {
      * Create voice payload message
      */
     fun createVoicePayloadMessage(sessionId: Int, samples: ByteArray): ByteArray {
+
+        Logger.i(Constants.TAG_PROTOBUF, "========== Creating Voice Payload ==========")
+        Logger.i(Constants.TAG_PROTOBUF, "Session ID        : $sessionId")
+        Logger.i(Constants.TAG_PROTOBUF, "Audio Bytes       : ${samples.size}")
+
         val voicePayloadOut = ByteArrayOutputStream()
-        voicePayloadOut.write(buildVarintField(1, sessionId))
-        voicePayloadOut.write(buildLengthDelimitedField(2, samples))
+
+        // Field 1 -> Session ID
+        val sessionField = buildVarintField(1, sessionId)
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            "Field 1 (Session) : ${
+                sessionField.joinToString(" ") { "%02X".format(it) }
+            }"
+        )
+        voicePayloadOut.write(sessionField)
+
+        // Field 2 -> Audio Samples
+        val audioField = buildLengthDelimitedField(2, samples)
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            "Field 2 Header    : ${
+                audioField.take(10).joinToString(" ") { "%02X".format(it) }
+            } ..."
+        )
+        Logger.i(Constants.TAG_PROTOBUF, "Field 2 Total Size: ${audioField.size}")
+
+        voicePayloadOut.write(audioField)
+
+        val innerPayload = voicePayloadOut.toByteArray()
+
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            "Inner Payload (${innerPayload.size} bytes): ${
+                innerPayload.take(40).joinToString(" ") { "%02X".format(it) }
+            } ..."
+        )
 
         val out = ByteArrayOutputStream()
-        out.write(buildLengthDelimitedField(FIELD_VOICE_PAYLOAD, voicePayloadOut.toByteArray()))
+
+        val wrappedPayload =
+            buildLengthDelimitedField(FIELD_VOICE_PAYLOAD, innerPayload)
+
+        out.write(wrappedPayload)
+
+        val finalMessage = out.toByteArray()
+
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            "Final Message (${finalMessage.size} bytes): ${
+                finalMessage.take(40).joinToString(" ") { "%02X".format(it) }
+            } ..."
+        )
+
+        Logger.i(Constants.TAG_PROTOBUF, "========== Voice Payload Created ==========")
+
+        return finalMessage
+    }
+
+    /**
+     * Emit a protobuf wire-format summary for a voice payload without dumping PCM bytes.
+     *
+     * This is intended for byte-level comparison against a reference implementation.
+     */
+    fun logVoicePayloadWireFormat(sessionId: Int, samples: ByteArray, serialized: ByteArray) {
+        val inner = decodeLengthDelimitedPayload(serialized, FIELD_VOICE_PAYLOAD)
+        if (inner == null) {
+            Logger.w(
+                Constants.TAG_PROTOBUF,
+                "Voice payload wire dump failed: could not decode outer field $FIELD_VOICE_PAYLOAD"
+            )
+            return
+        }
+
+        val (outerLength, innerBytes) = inner
+        val sessionField = decodeVarintField(innerBytes, 1)
+        val samplesField = decodeLengthDelimitedField(innerBytes, 2)
+
+        val sessionSummary = if (sessionField != null) {
+            "field=1 wire=0 value=${sessionField.second} bytes=${sessionField.first.toHexString()}"
+        } else {
+            "field=1 wire=0 <missing>"
+        }
+        val samplesSummary = if (samplesField != null) {
+            "field=2 wire=2 length=${samplesField.second.size} lengthBytes=${samplesField.first.toHexString()} payload=<omitted>"
+        } else {
+            "field=2 wire=2 <missing>"
+        }
+
+        Logger.i(
+            Constants.TAG_PROTOBUF,
+            buildString {
+                appendLine("Voice payload wire dump")
+                appendLine("session_id=$sessionId")
+                appendLine("samples_length=${samples.size}")
+                appendLine("outer_field=31 wire=2 outer_length=$outerLength")
+                appendLine("outer_tag=${encodeFieldTag(31, 2).toHexString()}")
+                appendLine("inner_fields:")
+                appendLine("  $sessionSummary")
+                appendLine("  $samplesSummary")
+                append("serialized_prefix=${serialized.prefixHex(16)}")
+                if (serialized.size > 16) {
+                    append(" ...")
+                }
+            }
+        )
+    }
+
+    private fun encodeFieldTag(fieldNumber: Int, wireType: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        writeVarint(out, (fieldNumber shl 3) or wireType)
         return out.toByteArray()
+    }
+
+    private fun decodeLengthDelimitedPayload(
+        data: ByteArray,
+        expectedFieldNumber: Int
+    ): Pair<Int, ByteArray>? {
+        var offset = 0
+        val (tagValue, tagNext) = readVarint(data, offset) ?: return null
+        offset = tagNext
+        val fieldNumber = tagValue ushr 3
+        val wireType = tagValue and 0x07
+        if (fieldNumber != expectedFieldNumber || wireType != 2) {
+            return null
+        }
+
+        val (length, lengthNext) = readVarint(data, offset) ?: return null
+        offset = lengthNext
+        if (offset + length > data.size) {
+            return null
+        }
+        return length to data.copyOfRange(offset, offset + length)
+    }
+
+    private fun decodeVarintField(data: ByteArray, expectedFieldNumber: Int): Pair<ByteArray, Int>? {
+        var offset = 0
+        val (tagValue, tagNext) = readVarint(data, offset) ?: return null
+        offset = tagNext
+        val fieldNumber = tagValue ushr 3
+        val wireType = tagValue and 0x07
+        if (fieldNumber != expectedFieldNumber || wireType != 0) {
+            return null
+        }
+        val (value, valueNext) = readVarint(data, offset) ?: return null
+        return data.copyOfRange(0, valueNext) to value
+    }
+
+    private fun decodeLengthDelimitedField(data: ByteArray, expectedFieldNumber: Int): Pair<ByteArray, ByteArray>? {
+        var offset = 0
+        val (tagValue, tagNext) = readVarint(data, offset) ?: return null
+        offset = tagNext
+        val fieldNumber = tagValue ushr 3
+        val wireType = tagValue and 0x07
+        if (fieldNumber != expectedFieldNumber || wireType != 2) {
+            return null
+        }
+        val (length, lengthNext) = readVarint(data, offset) ?: return null
+        offset = lengthNext
+        if (offset + length > data.size) {
+            return null
+        }
+        return data.copyOfRange(0, lengthNext) to data.copyOfRange(offset, offset + length)
+    }
+
+    private fun readVarint(data: ByteArray, start: Int): Pair<Int, Int>? {
+        var result = 0
+        var shift = 0
+        var offset = start
+        while (offset < data.size && shift < 35) {
+            val b = data[offset].toInt() and 0xFF
+            result = result or ((b and 0x7F) shl shift)
+            offset++
+            if ((b and 0x80) == 0) {
+                return result to offset
+            }
+            shift += 7
+        }
+        return null
+    }
+
+    private fun ByteArray.toHexString(): String {
+        return joinToString(" ") { byte -> "%02X".format(byte) }
+    }
+
+    private fun ByteArray.prefixHex(limit: Int): String {
+        val slice = if (size <= limit) this else copyOfRange(0, limit)
+        return slice.toHexString()
     }
 
     /**

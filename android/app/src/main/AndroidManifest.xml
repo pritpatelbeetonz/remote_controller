@@ -45,6 +45,9 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3337431729725485~4574357218"/>
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="com.waysol.android_tv_remote_package.google_cast.CastOptionsProvider" />
         <provider
             android:name="com.facebook.internal.FacebookInitProvider"
             android:authorities="com.test.app.testfeature.apps.FacebookInitProvider"

@@ -7,6 +7,8 @@ import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:remote_controller/splash_view.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'core/onboarding/onboarding_service.dart';
 import 'core/logger/logger.dart';
 import 'core/tv_remote_manager.dart';
 import 'for_ads/utils/app_constants.dart';
@@ -21,22 +23,18 @@ void main() async {
   await SharedPrefService.init();
   await MobileAds.instance.initialize();
 
-  // ─── Firebase + Logger must be initialized BEFORE TvRemoteManager ────────
-  // TvRemoteManager() constructor calls _initLogging(), which attaches stream
-  // listeners that route logs through AppLogger. If AppLogger has no sinks yet,
-  // every log from adapters (discovery, TLS, pairing, etc.) is silently dropped.
+  // Initialize ShowcaseView / Onboarding configs
+  OnboardingService().initialize();
+
   await Firebase.initializeApp();
   await AppLogger.initialize(
     sinks: [
       ConsoleLogSink(),
-      FirestoreLogSink(),
     ],
   );
   AppLogger.info('App', 'Application started — session: ${AppLogger.sessionId}');
-  // ─────────────────────────────────────────────────────────────────────────
 
   // Now that AppLogger sinks are registered, create TvRemoteManager.
-  // _initLogging() will attach adapter log listeners that write to Firestore.
   final manager = TvRemoteManager();
 
   await SystemChrome.setPreferredOrientations([
@@ -109,13 +107,15 @@ class MyApp extends StatelessWidget {
     return ScreenUtilInit(
       designSize: const Size(428, 926),
       minTextAdapt: true,
-      splitScreenMode: true,
+      splitScreenMode: false,
       builder: (context, child) {
-        return GetMaterialApp(
-          title: 'Universal TV Remote',
-          theme: AppTheme.darkTheme,
-          debugShowCheckedModeBanner: false,
-          home: const SplashScreen(),//BrandSelectionScreen(manager: manager),
+        return ShowCaseWidget(
+          builder: (context) => GetMaterialApp(
+            title: 'Universal TV Remote',
+            theme: AppTheme.darkTheme,
+            debugShowCheckedModeBanner: false,
+            home: const SplashScreen(),
+          ),
         );
       },
     );

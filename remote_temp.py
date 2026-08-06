@@ -40,7 +40,7 @@ KEYCODE_PREFIX = "KEYCODE_"
 TEXT_PREFIX = "text:"
 
 # Timeout in seconds to wait for `remote_voice_begin` after sending KEYCODE_SEARCH.
-VOICE_SESSION_TIMEOUT = 2.0
+VOICE_SESSION_TIMEOUT = 30.0
 # Voice data chunk size in bytes for the `remote_voice_payload` message.
 VOICE_CHUNK_SIZE = 20 * 1024
 # Minimum voice data chunk size in bytes. Shield TV did not accept lower chunk sizes.
